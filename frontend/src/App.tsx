@@ -13,15 +13,23 @@ import {
     SkipToContent,
     SideNav,
     SideNavItems,
+    SideNavMenu,
+    SideNavMenuItem,
+    SideNavLink,
+    SideNavDivider,
     HeaderSideNavItems,
     Content,
     Grid,
-    Column
+    Column,
+    GlobalTheme,
+    Theme
+
 } from '@carbon/react';
-import { Switcher, Notification, UserAvatar } from '@carbon/icons-react';
+import { Switcher, Notification, UserAvatar, Fade } from '@carbon/icons-react';
 
 function App() {
     const [resultText, setResultText] = useState("Please enter your name below 👇");
+    const [isSideNavExpanded, setIsSideNavExpanded] = useState(true);
     const [name, setName] = useState('');
     const updateName = (e: any) => setName(e.target.value);
     const updateResultText = (result: string) => setResultText(result);
@@ -32,60 +40,72 @@ function App() {
 
     return (
         <>
-            <Header>
-                <HeaderGlobalBar>
-                    <HeaderGlobalAction
-                        aria-label="Notifications"
-                        tooltipAlignment="center"
-                        className="action-icons">
-                        <Notification size={20} />
-                    </HeaderGlobalAction>
-                    <HeaderGlobalAction
-                        aria-label="User Avatar"
-                        tooltipAlignment="center"
-                        className="action-icons">
-                        <UserAvatar size={20} />
-                    </HeaderGlobalAction>
-                    <HeaderGlobalAction aria-label="App Switcher" tooltipAlignment="end">
-                        <Switcher size={20} />
-                    </HeaderGlobalAction>
-                </HeaderGlobalBar>
-            </Header>
+         {/* <Theme theme="g100"> */}
 
+            <Header aria-label="Header">
+                <SkipToContent />
+                <HeaderName href="#" prefix="Infinus Electronics">
+                    Power Cycling Control Panel
+                </HeaderName>
+            </Header>
+            <SideNav isFixedNav expanded={true} isChildOfHeader={false} aria-label="Side navigation">
+                <SideNavItems>
+                    <SideNavMenu title="L0 menu">
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                    </SideNavMenu>
+                    <SideNavMenu title="L0 menu" isActive={true}>
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                        <SideNavMenuItem aria-current="page" href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                    </SideNavMenu>
+                    <SideNavMenu title="L0 menu">
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                            L0 menu item
+                        </SideNavMenuItem>
+                    </SideNavMenu>
+                    <SideNavDivider />
+                    <SideNavLink href="https://www.carbondesignsystem.com/">
+                        L0 link
+                    </SideNavLink>
+                    <SideNavLink href="https://www.carbondesignsystem.com/">
+                        L0 link
+                    </SideNavLink>
+                </SideNavItems>
+            </SideNav>
             <Content>
-                <Grid className="landing-page" fullWidth>
-                    <Column lg={16} md={8} sm={4} className="landing-page__banner">
-                        1
-                    </Column>
-                    <Column lg={16} md={8} sm={4} className="landing-page__r2">
-                        <Grid className="tabs-group-content">
-                            <Column md={4} lg={7} sm={4} className="landing-page__tab-content">
-                                7/16
-                            </Column>
-                            <Column md={4} lg={{ span: 8, offset: 8 }} sm={4}>
-                                8/16
-                            </Column>
-                        </Grid>
-                    </Column>
-                    <Column lg={16} md={8} sm={4} className="landing-page__r3">
-                        <Grid>
-                            <Column md={4} lg={4} sm={4}>
-                                1/4
-                            </Column>
-                            <Column md={4} lg={4} sm={4}>
-                                1/4
-                            </Column>
-                            <Column md={4} lg={4} sm={4}>
-                                1/4
-                            </Column>
-                            <Column md={4} lg={4} sm={4}>
-                                1/4
-                            </Column>
-                        </Grid>
+                <Grid fullWidth>
+                    <Column lg={16} md={8} sm={4}>
+                        <h1>
+                            Test
+                        </h1>
                     </Column>
                 </Grid>
             </Content>
+
+            
+        {/* </Theme> */}
         </>
+
 
     )
 }
