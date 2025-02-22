@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Greet } from "../wailsjs/go/main/App";
 import "./globals.scss";
+import "./inf.scss"
 import {
     Header,
     HeaderContainer,
@@ -25,7 +26,7 @@ import {
     Theme
 
 } from '@carbon/react';
-import { Switcher, Notification, UserAvatar, Fade } from '@carbon/icons-react';
+import { Switcher, Notification, UserAvatar, Fade, ConditionPoint } from '@carbon/icons-react';
 
 function App() {
     const [resultText, setResultText] = useState("Please enter your name below 👇");
@@ -40,7 +41,7 @@ function App() {
 
     return (
         <>
-         {/* <Theme theme="g100"> */}
+            {/* <Theme theme="g100"> */}
 
             <Header aria-label="Header">
                 <SkipToContent />
@@ -94,16 +95,42 @@ function App() {
             </SideNav>
             <Content>
                 <Grid fullWidth>
-                    <Column lg={16} md={8} sm={4}>
+                    <Column lg={12} md={6} sm={3}>
                         <h1>
                             Test
                         </h1>
                     </Column>
+                    <Column lg={4} md={2} sm={1}>
+                        <Grid>
+                            <Column span={16}>
+                                <p className='inf-device-info'>
+                                    Device ONLINE
+                                </p>
+                            </Column>
+                            <Column span={16}>
+                                <p className='inf-device-info'>
+                                    MAC Address:
+                                </p>
+                                <p className='inf-device-info-value'>
+                                    FF:FF:FF:FF:FF:FF
+                                </p>
+                            </Column>
+                            <Column span={16}>
+                                <p className='inf-device-info'>
+                                    IP Address:
+                                </p>
+                                <p className='inf-device-info-value'>
+                                    255.255.255.255
+                                </p>
+                            </Column>
+                        </Grid>
+
+                    </Column>
                 </Grid>
             </Content>
 
-            
-        {/* </Theme> */}
+
+            {/* </Theme> */}
         </>
 
 
