@@ -32,28 +32,35 @@ import { server } from '../wailsjs/go/models';
 
 const App = () => {
     const [connectedIPs, setConnectedIPs] = useState<Record<string, server.IPConnection>>({});
+    const [selectedIP, setSelectedIP] = useState<string | null>(null);
     // const [error, setError] = useState(String);
 
     useEffect(() => {
         // Greet("test").then((e)=>{console.log(e)});
         const fetchConnectedIPs = async () => {
-          try {
-            const response = await GetAllConnectedIPs();
-            console.log('Raw response:', response);
-            setConnectedIPs(response || {});
-            // setError(null);
-          } catch (err) {
-            console.error('Error fetching IPs:', err);
-            // setError(`Failed to fetch connected IPs: ${err.message}`);
-            setConnectedIPs({});
-          }
+            try {
+                const response = await GetAllConnectedIPs();
+                console.log('Raw response:', response);
+                setConnectedIPs(response || {});
+                // setError(null);
+            } catch (err) {
+                console.error('Error fetching IPs:', err);
+                // setError(`Failed to fetch connected IPs: ${err.message}`);
+                setConnectedIPs({});
+            }
         };
-    
+
         fetchConnectedIPs();
         const interval = setInterval(fetchConnectedIPs, 1000);
         return () => clearInterval(interval);
-      }, []);
-    
+    }, []);
+
+    const handleIPSelect = (ip: string) => {
+        setSelectedIP(ip);
+        console.log('Selected IP:', ip);
+    };
+
+
     return (
         <>
             {/* <Theme theme="g100"> */}
@@ -66,53 +73,25 @@ const App = () => {
             </Header>
             <SideNav isFixedNav expanded={true} isChildOfHeader={false} aria-label="Side navigation">
                 <SideNavItems>
-                    <SideNavMenu title="Connected Devices">
+                    <SideNavMenu title="Connected Devices" defaultExpanded>
 
                         {Object.entries(connectedIPs).map(([ip, conn], _i) => {
-                            return(
-                            <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                                 {ip.replace(/_/g, '.')}
-                             </SideNavMenuItem>)
-                            })}
+                            return (
+                                <SideNavMenuItem href="#" key={ip} isActive={selectedIP === ip} onClick={(e: React.MouseEvent) => {
+                                    e.preventDefault();
+                                    handleIPSelect(ip);
+                                }}>
+                                    {ip.replace(/_/g, '.')}
+                                </SideNavMenuItem>)
+                        })}
 
-                        
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
                     </SideNavMenu>
-                    <SideNavMenu title="L0 menu" isActive={true}>
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                        <SideNavMenuItem aria-current="page" href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                    </SideNavMenu>
-                    <SideNavMenu title="L0 menu">
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                        <SideNavMenuItem href="https://www.carbondesignsystem.com/">
-                            L0 menu item
-                        </SideNavMenuItem>
-                    </SideNavMenu>
+
                     <SideNavDivider />
-                    <SideNavLink href="https://www.carbondesignsystem.com/">
+                    <SideNavLink href="#">
                         L0 link
                     </SideNavLink>
-                    <SideNavLink href="https://www.carbondesignsystem.com/">
+                    <SideNavLink href="#">
                         L0 link
                     </SideNavLink>
                 </SideNavItems>
@@ -144,7 +123,7 @@ const App = () => {
                                     IP Address:
                                 </p>
                                 <p className='inf-device-info-value'>
-                                    255.255.255.255
+                                    {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
                                 </p>
                             </Column>
                         </Grid>
