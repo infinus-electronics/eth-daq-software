@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
+	server "eth-daq-software/internal"
 )
 
 // App struct
@@ -19,6 +22,18 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	if err := os.MkdirAll("data", 0755); err != nil {
+		fmt.Printf("Failed to create data directory: %v\n", err)
+		return
+	}
+
+	ports := []int{5555, 5556, 5557}
+
+	for _, port := range ports {
+		go server.StartListener(port)
+	}
+
 }
 
 // Greet returns a greeting for the given name
