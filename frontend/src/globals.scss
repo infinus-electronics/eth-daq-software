@@ -26,6 +26,10 @@ body {
     }
 }
 
+.cds--css-grid{
+    margin-bottom: 1rem;
+}
+
 /// Padding was introduced in 10.3.0, needs an option to let grid set the viewport gutter
 /// @link https://github.com/carbon-design-system/carbon/issues/3010
 .cds--content {
@@ -59,3 +63,7 @@ body{
     max-width: 100vw;
 }
 
+sub {
+    vertical-align: sub;
+    font-size: smaller;
+  }

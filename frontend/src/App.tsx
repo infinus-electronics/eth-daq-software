@@ -21,6 +21,7 @@ import {
     HeaderSideNavItems,
     Content,
     Grid,
+
     Column,
     GlobalTheme,
     Theme
@@ -33,6 +34,7 @@ import { server } from '../wailsjs/go/models';
 const App = () => {
     const [connectedIPs, setConnectedIPs] = useState<Record<string, server.IPConnection>>({});
     const [selectedIP, setSelectedIP] = useState<string | null>(null);
+    const [selectedDevNum, setSelectedDevNum] = useState<number|null>(null);
     // const [error, setError] = useState(String);
 
     useEffect(() => {
@@ -57,6 +59,8 @@ const App = () => {
 
     const handleIPSelect = (ip: string) => {
         setSelectedIP(ip);
+        let devNum = Object.keys(connectedIPs).findIndex(p => p === ip);
+        setSelectedDevNum(devNum)
         console.log('Selected IP:', ip);
     };
 
@@ -98,19 +102,16 @@ const App = () => {
             </SideNav>
             <Content>
                 <Grid fullWidth>
-                    <Column lg={12} md={6} sm={3}>
+
+                    <Column lg={16} md={8} sm={4}>
                         <h1>
-                            Test
+                            Device {selectedDevNum}
                         </h1>
                     </Column>
-                    <Column lg={4} md={2} sm={1}>
-                        <Grid>
-                            <Column span={16}>
-                                <p className='inf-device-info'>
-                                    Device ONLINE
-                                </p>
-                            </Column>
-                            <Column span={16}>
+                    </Grid>
+                        <Grid fullWidth>
+
+                            <Column lg={8} md={4} sm={2}>
                                 <p className='inf-device-info'>
                                     MAC Address:
                                 </p>
@@ -118,7 +119,8 @@ const App = () => {
                                     FF:FF:FF:FF:FF:FF
                                 </p>
                             </Column>
-                            <Column span={16}>
+
+                            <Column lg={8} md={4} sm={2}>
                                 <p className='inf-device-info'>
                                     IP Address:
                                 </p>
@@ -126,10 +128,20 @@ const App = () => {
                                     {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
                                 </p>
                             </Column>
+
                         </Grid>
 
+
+
+                <Grid fullWidth>
+                    <Column lg={16} md={8} sm={4}>
+                        <h2>
+                            V<sub>DS</sub>
+                        </h2>
                     </Column>
                 </Grid>
+
+
             </Content>
 
 
