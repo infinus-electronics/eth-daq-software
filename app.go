@@ -57,3 +57,11 @@ func (a *App) GetPortRate(key server.BufferKey) float64 {
 func (a *App) GetAllRates() map[string]float64 {
 	return a.server.GetAllBufferRates()
 }
+
+func (a *App) GetAllConnectedIPs() map[string]*server.IPConnection {
+	ips := a.server.GetAllConnectedIPs()
+	if ips == nil {
+		return make(map[string]*server.IPConnection)
+	}
+	return ips
+}

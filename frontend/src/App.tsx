@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Greet } from "../wailsjs/go/main/App";
+import { useEffect, useState } from 'react';
+import { Greet, GetAllConnectedIPs } from "../wailsjs/go/main/App";
 import "./globals.scss";
 import "./inf.scss"
 import {
@@ -29,16 +29,29 @@ import {
 import { Switcher, Notification, UserAvatar, Fade, ConditionPoint } from '@carbon/icons-react';
 
 function App() {
-    const [resultText, setResultText] = useState("Please enter your name below 👇");
-    const [isSideNavExpanded, setIsSideNavExpanded] = useState(true);
-    const [name, setName] = useState('');
-    const updateName = (e: any) => setName(e.target.value);
-    const updateResultText = (result: string) => setResultText(result);
+    const [connectedIPs, setConnectedIPs] = useState({});
+    // const [error, setError] = useState(String);
 
-    function greet() {
-        Greet(name).then(updateResultText);
-    }
-
+    useEffect(() => {
+        // Greet("test").then((e)=>{console.log(e)});
+        const fetchConnectedIPs = async () => {
+          try {
+            const response = await GetAllConnectedIPs();
+            console.log('Raw response:', response);
+            setConnectedIPs(response || {});
+            // setError(null);
+          } catch (err) {
+            console.error('Error fetching IPs:', err);
+            // setError(`Failed to fetch connected IPs: ${err.message}`);
+            setConnectedIPs({});
+          }
+        };
+    
+        fetchConnectedIPs();
+        const interval = setInterval(fetchConnectedIPs, 1000);
+        return () => clearInterval(interval);
+      }, []);
+    
     return (
         <>
             {/* <Theme theme="g100"> */}
@@ -51,7 +64,7 @@ function App() {
             </Header>
             <SideNav isFixedNav expanded={true} isChildOfHeader={false} aria-label="Side navigation">
                 <SideNavItems>
-                    <SideNavMenu title="L0 menu">
+                    <SideNavMenu title="Connected Devices">
                         <SideNavMenuItem href="https://www.carbondesignsystem.com/">
                             L0 menu item
                         </SideNavMenuItem>
