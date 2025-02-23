@@ -14,6 +14,20 @@ export namespace server {
 	        this.Port = source["Port"];
 	    }
 	}
+	export class IPConnection {
+	    ActivePorts: Record<number, boolean>;
+	    TotalBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new IPConnection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ActivePorts = source["ActivePorts"];
+	        this.TotalBytes = source["TotalBytes"];
+	    }
+	}
 
 }
 

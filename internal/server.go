@@ -38,8 +38,6 @@ func NewServer() *Server {
 }
 
 type IPConnection struct {
-	FirstSeen   time.Time
-	LastSeen    time.Time
 	ActivePorts map[int]bool
 	TotalBytes  int64
 }
@@ -272,16 +270,14 @@ func (s *Server) AddIPConnection(ip string, port int) {
 	s.connectedIPsLock.Lock()
 	defer s.connectedIPsLock.Unlock()
 
-	now := time.Now()
 	sanitizedIP := SanitizeFilename(ip)
 
 	if conn, exists := s.connectedIPs[sanitizedIP]; exists {
-		conn.LastSeen = now
+
 		conn.ActivePorts[port] = true
 	} else {
 		s.connectedIPs[sanitizedIP] = &IPConnection{
-			FirstSeen:   now,
-			LastSeen:    now,
+
 			ActivePorts: map[int]bool{port: true},
 			TotalBytes:  0,
 		}
@@ -328,24 +324,22 @@ func (s *Server) GetIPInfo(ip string) (*IPConnection, bool) {
 
 	// Return a copy to prevent concurrent access issues
 	return &IPConnection{
-		FirstSeen:   conn.FirstSeen,
-		LastSeen:    conn.LastSeen,
+
 		ActivePorts: maps.Clone(conn.ActivePorts),
 		TotalBytes:  conn.TotalBytes,
 	}, true
 }
 
 // GetAllConnectedIPs returns information about all connected IPs
-func (s *Server) GetAllConnectedIPs() map[string]*IPConnection {
+func (s *Server) GetAllConnectedIPs() map[string]IPConnection {
 	s.connectedIPsLock.RLock()
 	defer s.connectedIPsLock.RUnlock()
 
 	// Create a deep copy of the map
-	result := make(map[string]*IPConnection)
+	result := make(map[string]IPConnection)
 	for ip, conn := range s.connectedIPs {
-		result[ip] = &IPConnection{
-			FirstSeen:   conn.FirstSeen,
-			LastSeen:    conn.LastSeen,
+		result[ip] = IPConnection{
+
 			ActivePorts: maps.Clone(conn.ActivePorts),
 			TotalBytes:  conn.TotalBytes,
 		}

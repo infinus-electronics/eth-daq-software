@@ -9,5 +9,8 @@
   "author": {
     "name": "Infinus Electronics",
     "email": "yeheng2001@gmail.com"
-  }
+  },
+  "typeBindings": [
+    "server.IPConnection"
+  ]
 }

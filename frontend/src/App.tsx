@@ -27,9 +27,11 @@ import {
 
 } from '@carbon/react';
 import { Switcher, Notification, UserAvatar, Fade, ConditionPoint } from '@carbon/icons-react';
+import { server } from '../wailsjs/go/models';
 
-function App() {
-    const [connectedIPs, setConnectedIPs] = useState({});
+
+const App = () => {
+    const [connectedIPs, setConnectedIPs] = useState<Record<string, server.IPConnection>>({});
     // const [error, setError] = useState(String);
 
     useEffect(() => {
@@ -65,6 +67,15 @@ function App() {
             <SideNav isFixedNav expanded={true} isChildOfHeader={false} aria-label="Side navigation">
                 <SideNavItems>
                     <SideNavMenu title="Connected Devices">
+
+                        {Object.entries(connectedIPs).map(([ip, conn], _i) => {
+                            return(
+                            <SideNavMenuItem href="https://www.carbondesignsystem.com/">
+                                 {ip.replace(/_/g, '.')}
+                             </SideNavMenuItem>)
+                            })}
+
+                        
                         <SideNavMenuItem href="https://www.carbondesignsystem.com/">
                             L0 menu item
                         </SideNavMenuItem>
