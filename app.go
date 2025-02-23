@@ -10,12 +10,15 @@ import (
 
 // App struct
 type App struct {
-	ctx context.Context
+	ctx    context.Context
+	server *server.Server
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{}
+	return &App{
+		server: server.NewServer(),
+	}
 }
 
 // startup is called when the app starts. The context is saved
@@ -31,7 +34,7 @@ func (a *App) startup(ctx context.Context) {
 	ports := []int{5555, 5556, 5557}
 
 	for _, port := range ports {
-		go server.StartListener(port)
+		go a.server.StartListener(port)
 	}
 
 }
@@ -39,4 +42,18 @@ func (a *App) startup(ctx context.Context) {
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
+}
+
+// GetPortRate returns the current transfer rate for a specific port
+func (a *App) GetPortRate(key server.BufferKey) float64 {
+	rate, exists := a.server.GetBufferRate(key.IP, key.Port)
+	if !exists {
+		return 0
+	}
+	return rate
+}
+
+// GetAllRates returns all current transfer rates
+func (a *App) GetAllRates() map[string]float64 {
+	return a.server.GetAllBufferRates()
 }
