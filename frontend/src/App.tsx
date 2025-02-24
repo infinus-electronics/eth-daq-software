@@ -44,7 +44,7 @@ const App = () => {
         const fetchConnectedIPs = async () => {
             try {
                 const response = await GetAllConnectedIPs();
-                console.log('Raw response:', response);
+                // console.log('Raw response:', response);
                 setConnectedIPs(response || {});
                 // setError(null);
             } catch (err) {
@@ -76,13 +76,13 @@ const App = () => {
                 IP: selectedIP.replace(/_/g, '.'),
                 Port: 5555
             }
-            console.log(key)
-            console.log(currentIP)
+            // console.log(key)
+            // console.log(currentIP)
             // Call GetPortAverage on every frame
             GetPortAverage(key)
                 .then(result => {
                     setPortAverage(result);
-                    console.log("Got port average:", result); // Add logging
+                    // console.log("Got port average:", result); // Add logging
                 })
                 .catch(error => {
                     console.error("Error fetching port average:", error);

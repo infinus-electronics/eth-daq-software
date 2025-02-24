@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
@@ -31,6 +32,8 @@ func main() {
 		Debug: options.Debug{
 			OpenInspectorOnStartup: false,
 		},
+		LogLevel:           logger.DEBUG,
+		LogLevelProduction: logger.ERROR,
 	})
 
 	if err != nil {

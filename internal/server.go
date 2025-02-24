@@ -387,6 +387,7 @@ func SanitizeFilename(ip string) string {
 	).Replace(ip)
 }
 
+// TODO: do we really need sanitized IPs?
 // AddIPConnection records or updates an IP connection
 func (s *Server) AddIPConnection(ip string, port int) {
 	s.connectedIPsLock.Lock()
@@ -472,10 +473,10 @@ func (s *Server) GetAllConnectedIPs() map[string]IPConnection {
 func (s *Server) GetPortAverage(key BufferKey) (float64, bool) {
 	s.buffersLock.RLock()
 	defer s.buffersLock.RUnlock()
-	fmt.Printf("%s,%d \n", key.IP, key.Port)
+	// fmt.Printf("%s,%d \n", key.IP, key.Port)
 
 	if buffer, exists := s.buffers[key]; exists {
-		fmt.Println(buffer.clientIP)
+		// fmt.Println(buffer.clientIP)
 		return buffer.CalculateAverage()
 	} else {
 		return 0.0, false

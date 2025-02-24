@@ -71,9 +71,9 @@ func (a *App) GetAllConnectedIPs() map[string]server.IPConnection {
 }
 
 func (a *App) GetPortAverage(key server.BufferKey) float64 {
-	fmt.Printf("Request: %s, %d\n", key.IP, key.Port)
+	// fmt.Printf("Request: %s, %d\n", key.IP, key.Port)
 	result, _ := a.server.GetPortAverage(key)
-	fmt.Printf("Result: %f", result)
+	// fmt.Printf("Result: %f", result)
 	return result
 }
 
