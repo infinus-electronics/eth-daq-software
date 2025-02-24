@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"maps"
@@ -43,21 +44,104 @@ type IPConnection struct {
 }
 
 type DataBuffer struct {
-	port          int
-	clientIP      string
-	buffer        []byte
-	mu            sync.Mutex
-	bytesReceived int64
-	lastCheck     time.Time
-	rate          float64
+	port           int
+	clientIP       string
+	buffer         []byte
+	mu             sync.Mutex
+	bytesReceived  int64
+	lastCheck      time.Time
+	rate           float64
+	circularBuffer *CircularBuffer // Circular buffer to hold the last N samples
+	lastAverage    float64         // Last calculated average
+	leftoverByte   *byte
+	hasLeftover    bool
 }
 
-func NewDataBuffer(port int, clientIP string) *DataBuffer {
+// CircularBuffer implements a fixed-size circular buffer for uint16 values
+type CircularBuffer struct {
+	data       []uint16 // Fixed-size array to hold the values
+	size       int      // Total capacity of the buffer
+	count      int      // Current number of elements in buffer (may be less than size)
+	head       int      // Index where the next element will be inserted
+	sum        uint64   // Running sum of all elements in the buffer
+	isFullOnce bool     // Flag indicating if the buffer has been filled at least once
+}
+
+// NewCircularBuffer creates a new circular buffer with the specified size
+func NewCircularBuffer(size int) *CircularBuffer {
+	return &CircularBuffer{
+		data:       make([]uint16, size),
+		size:       size,
+		count:      0,
+		head:       0,
+		sum:        0,
+		isFullOnce: false,
+	}
+}
+
+// Add adds a new value to the circular buffer, overwriting the oldest value if full
+func (cb *CircularBuffer) Add(value uint16) {
+	// If the buffer is full, subtract the value that will be overwritten
+	if cb.count == cb.size {
+		// Calculate the index of the value being replaced (the oldest value)
+		oldestIdx := cb.head
+		cb.sum -= uint64(cb.data[oldestIdx])
+	} else {
+		// Buffer isn't full yet, so increment count
+		cb.count++
+	}
+
+	// Add the new value to the buffer
+	cb.data[cb.head] = value
+	cb.sum += uint64(value)
+
+	// Move the head to the next position
+	cb.head = (cb.head + 1) % cb.size
+
+	// Mark as full once if we've reached capacity
+	if cb.count == cb.size && !cb.isFullOnce {
+		cb.isFullOnce = true
+	}
+}
+
+// GetAverage calculates the average of all values in the buffer
+func (cb *CircularBuffer) GetAverage() float64 {
+	if cb.count == 0 {
+		return 0.0
+	}
+	return float64(cb.sum) / float64(cb.count)
+}
+
+// IsFull returns true if the buffer is at capacity
+func (cb *CircularBuffer) IsFull() bool {
+	return cb.count == cb.size
+}
+
+// IsFullOnce returns true if the buffer has been completely filled at least once
+func (cb *CircularBuffer) IsFullOnce() bool {
+	return cb.isFullOnce
+}
+
+// GetCount returns the current number of elements in the buffer
+func (cb *CircularBuffer) GetCount() int {
+	return cb.count
+}
+
+// GetCapacity returns the total capacity of the buffer
+func (cb *CircularBuffer) GetCapacity() int {
+	return cb.size
+}
+
+func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
 	return &DataBuffer{
-		port:      port,
-		clientIP:  SanitizeFilename(clientIP),
-		buffer:    make([]byte, 0, BUFFER_SIZE),
-		lastCheck: time.Now(),
+		port:           port,
+		clientIP:       SanitizeFilename(clientIP),
+		buffer:         make([]byte, 0, BUFFER_SIZE),
+		lastCheck:      time.Now(),
+		lastAverage:    0,
+		circularBuffer: NewCircularBuffer(avgWindowSize),
+		leftoverByte:   nil,
+		hasLeftover:    false,
 	}
 }
 
@@ -74,6 +158,8 @@ func (db *DataBuffer) AddData(data []byte) {
 
 	db.buffer = append(db.buffer, data...)
 	db.bytesReceived += int64(len(data))
+	//handles the uint16 average calculation
+	db.processBytes(data)
 
 	elapsed := time.Since(db.lastCheck).Seconds()
 	if elapsed >= 1.0 {
@@ -86,6 +172,42 @@ func (db *DataBuffer) AddData(data []byte) {
 
 	if len(db.buffer) >= BUFFER_SIZE {
 		db.Flush()
+	}
+}
+
+// processBytes converts the raw bytes to uint16 samples, handling any byte alignment issues
+func (db *DataBuffer) processBytes(newBytes []byte) {
+	// Start with an empty temporary buffer
+	tempBuffer := make([]byte, 0, len(newBytes)+1) // +1 for potential leftover
+
+	// If we had a leftover byte from previous data, prepend it
+	if db.hasLeftover && db.leftoverByte != nil {
+		tempBuffer = append(tempBuffer, *db.leftoverByte)
+	}
+
+	// Add the new bytes
+	tempBuffer = append(tempBuffer, newBytes...)
+
+	// Process all complete uint16 samples (pairs of bytes)
+	completeBytes := len(tempBuffer) - (len(tempBuffer) % 2)
+	for i := 0; i < completeBytes; i += 2 {
+		// Convert pair of bytes to uint16 (big-endian)
+		sample := binary.BigEndian.Uint16(tempBuffer[i : i+2])
+
+		// Add to our circular buffer
+		db.circularBuffer.Add(sample)
+	}
+
+	// Check if we have a leftover byte
+	if len(tempBuffer)%2 != 0 {
+		// Store the leftover byte for the next data chunk
+		leftover := tempBuffer[len(tempBuffer)-1]
+		db.leftoverByte = &leftover
+		db.hasLeftover = true
+	} else {
+		// No leftover byte
+		db.leftoverByte = nil
+		db.hasLeftover = false
 	}
 }
 
@@ -139,7 +261,7 @@ func (s *Server) StartListener(port int) {
 		clientIP := GetClientIP(conn.RemoteAddr())
 		fmt.Printf("New connection on port %d from %s\n", port, clientIP)
 
-		buffer := NewDataBuffer(port, clientIP)
+		buffer := NewDataBuffer(port, clientIP, 1000)
 		// Create composite key
 		key := BufferKey{
 			IP:   clientIP,
@@ -345,4 +467,45 @@ func (s *Server) GetAllConnectedIPs() map[string]IPConnection {
 		}
 	}
 	return result
+}
+
+func (s *Server) GetPortAverage(key BufferKey) (float64, bool) {
+	s.buffersLock.RLock()
+	defer s.buffersLock.RUnlock()
+	fmt.Printf("%s,%d \n", key.IP, key.Port)
+
+	if buffer, exists := s.buffers[key]; exists {
+		fmt.Println(buffer.clientIP)
+		return buffer.CalculateAverage()
+	} else {
+		return 0.0, false
+	}
+}
+
+// CalculateAverage calculates the current average of samples in the circular buffer
+// Returns the average and whether the buffer has been filled at least once
+func (db *DataBuffer) CalculateAverage() (float64, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	db.lastAverage = db.circularBuffer.GetAverage()
+	isFullOnce := db.circularBuffer.IsFullOnce()
+
+	return db.lastAverage, isFullOnce
+}
+
+// GetLastAverage returns the last calculated average without recalculating
+func (db *DataBuffer) GetLastAverage() float64 {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	return db.lastAverage
+}
+
+// GetBufferStatus returns the current state of the circular buffer (count/capacity)
+func (db *DataBuffer) GetBufferStatus() (int, int) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	return db.circularBuffer.GetCount(), db.circularBuffer.GetCapacity()
 }

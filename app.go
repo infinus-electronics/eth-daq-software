@@ -70,6 +70,13 @@ func (a *App) GetAllConnectedIPs() map[string]server.IPConnection {
 	return ips
 }
 
+func (a *App) GetPortAverage(key server.BufferKey) float64 {
+	fmt.Printf("Request: %s, %d\n", key.IP, key.Port)
+	result, _ := a.server.GetPortAverage(key)
+	fmt.Printf("Result: %f", result)
+	return result
+}
+
 // Add this method to expose the type
 func (a *App) DUMMYGetIPConnectionDetails(conn server.IPConnection) string {
 	// Just a dummy method to expose the type

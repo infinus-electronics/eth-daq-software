@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Greet, GetAllConnectedIPs } from "../wailsjs/go/main/App";
+import { use, useEffect, useState } from 'react';
+import { Greet, GetAllConnectedIPs, GetPortAverage } from "../wailsjs/go/main/App";
 import "./globals.scss";
 import "./inf.scss"
 import {
@@ -34,7 +34,9 @@ import { server } from '../wailsjs/go/models';
 const App = () => {
     const [connectedIPs, setConnectedIPs] = useState<Record<string, server.IPConnection>>({});
     const [selectedIP, setSelectedIP] = useState<string | null>(null);
-    const [selectedDevNum, setSelectedDevNum] = useState<number|null>(null);
+    const [selectedDevNum, setSelectedDevNum] = useState<number | null>(null);
+    const [portAverage, setPortAverage] = useState<number | null>(null);
+    let currentIP: string = "";
     // const [error, setError] = useState(String);
 
     useEffect(() => {
@@ -57,8 +59,56 @@ const App = () => {
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        // Set up the animation frame for GetPortAverage
+
+        if (!selectedIP) {
+            setPortAverage(0);
+            return; // Exit early if no IP is selected
+        }
+
+        // Set up the animation frame for GetPortAverage
+        let animationFrameId: number;
+        let isRunning = true;
+        const updatePortAverage = () => {
+            if (!isRunning) return;
+            let key: server.BufferKey = {
+                IP: selectedIP.replace(/_/g, '.'),
+                Port: 5555
+            }
+            console.log(key)
+            console.log(currentIP)
+            // Call GetPortAverage on every frame
+            GetPortAverage(key)
+                .then(result => {
+                    setPortAverage(result);
+                    console.log("Got port average:", result); // Add logging
+                })
+                .catch(error => {
+                    console.error("Error fetching port average:", error);
+                })
+            .finally(() => {
+                // Always request next frame after the current one completes
+                if (isRunning) {
+                    animationFrameId = requestAnimationFrame(updatePortAverage);
+                }
+            });
+        };
+
+        requestAnimationFrame(updatePortAverage);
+
+        // Cleanup function
+        return () => {
+            isRunning = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        };
+    }, [selectedIP])
+
     const handleIPSelect = (ip: string) => {
         setSelectedIP(ip);
+        currentIP = ip;
         let devNum = Object.keys(connectedIPs).findIndex(p => p === ip);
         setSelectedDevNum(devNum)
         console.log('Selected IP:', ip);
@@ -108,35 +158,35 @@ const App = () => {
                             Device {selectedDevNum}
                         </h1>
                     </Column>
-                    </Grid>
-                        <Grid fullWidth>
+                </Grid>
+                <Grid fullWidth>
 
-                            <Column lg={8} md={4} sm={2}>
-                                <p className='inf-device-info'>
-                                    MAC Address:
-                                </p>
-                                <p className='inf-device-info-value'>
-                                    FF:FF:FF:FF:FF:FF
-                                </p>
-                            </Column>
+                    <Column lg={8} md={4} sm={2}>
+                        <p className='inf-device-info'>
+                            MAC Address:
+                        </p>
+                        <p className='inf-device-info-value'>
+                            FF:FF:FF:FF:FF:FF
+                        </p>
+                    </Column>
 
-                            <Column lg={8} md={4} sm={2}>
-                                <p className='inf-device-info'>
-                                    IP Address:
-                                </p>
-                                <p className='inf-device-info-value'>
-                                    {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
-                                </p>
-                            </Column>
+                    <Column lg={8} md={4} sm={2}>
+                        <p className='inf-device-info'>
+                            IP Address:
+                        </p>
+                        <p className='inf-device-info-value'>
+                            {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
+                        </p>
+                    </Column>
 
-                        </Grid>
+                </Grid>
 
 
 
                 <Grid fullWidth>
                     <Column lg={16} md={8} sm={4}>
                         <h2>
-                            V<sub>DS</sub>
+                            V<sub>DS</sub> = {portAverage}
                         </h2>
                     </Column>
                 </Grid>
