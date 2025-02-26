@@ -16,7 +16,7 @@ to this in your browser, and you can call your Go code from devtools.
 
 ## Building
 
-To build a redistributable, production mode package, use `wails build`.
+To build a redistributable, production mode package, use `wails build`. For Ubuntu, use `wails build -clean -tags webkit2_41`
 
 ## Task tracking
 [] Beware of sanitized ip and original ip format, might waste a lot of time....
