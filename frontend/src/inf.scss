@@ -1,17 +1,25 @@
-.inf-device-info{
+.inf-device-info {
     text-align: start;
 }
 
-.inf-device-info-value{
+.inf-device-info-value {
     font-weight: bold;
 }
 
-.inf-device-logs{
-    font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
-    font-size: small;
+.inf-device-logs-container {
+
     // overflow-y: scroll;
-    // height: 25rem;
+    max-height: 10em;
     text-wrap: wrap;
     box-sizing: border-box;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 1px;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+}
 
+.inf-device-log-entry {
+    font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
+    font-size: small;
 }

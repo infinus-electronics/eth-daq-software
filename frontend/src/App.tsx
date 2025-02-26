@@ -62,17 +62,17 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        if (!selectedIP){
+        if (!selectedIP) {
             setLogs([]);
             return
         }
         const fetchLogs = async () => {
-            GetLogs(selectedIP).then((e)=>{
+            GetLogs(selectedIP).then((e) => {
                 setLogs(e)
-            }).catch((err)=>{
+            }).catch((err) => {
                 console.log("Error fetching logs: ", err)
             })
-            
+
         };
 
         fetchLogs();
@@ -245,16 +245,17 @@ const App = () => {
                             <h2>
                                 Device Logs
                             </h2>
-                            </Column>
-                            <Column lg={16} md={8} sm={4}>
-                            {logs.map(e=>{
+                        </Column>
+                        <Column lg={16} md={8} sm={4}>
+                        <div className='inf-device-logs-container'>
+                            {logs.map((e, i) => {
                                 return (
-<p className='inf-device-logs'>
-                                {e}
-                                </p>
+                                    <p key={i} className='inf-device-log-entry'>
+                                        {e}
+                                    </p>
                                 )
                             })}
-                            
+                        </div>
                         </Column>
                     </Grid>
 

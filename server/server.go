@@ -659,7 +659,7 @@ func (s *Server) HandleUDPLogs(conn *net.UDPConn) {
 		s.logBuffersLock.Lock()
 		logBuffer, exists := s.logBuffers[sanitizedIP]
 		if !exists {
-			logBuffer = NewLogBuffer(sanitizedIP, 100) // Store last 500 lines
+			logBuffer = NewLogBuffer(sanitizedIP, 500) // Store last 500 lines
 			s.logBuffers[sanitizedIP] = logBuffer
 
 			// Create log file
