@@ -20,7 +20,7 @@ func main() {
 	err := wails.Run(&options.App{
 		Title:  "eth-daq-software",
 		Width:  1280,
-		Height: 1024,
+		Height: 800,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
