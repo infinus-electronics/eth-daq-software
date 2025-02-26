@@ -25,6 +25,11 @@ type Server struct {
 	// Track IP addresses and their connection times
 	connectedIPs     map[string]*IPConnection
 	connectedIPsLock sync.RWMutex
+	// New log-related fields
+	logBuffers      map[string]*LogBuffer
+	logBuffersLock  sync.RWMutex
+	udpListener     *net.UDPConn
+	udpListenerLock sync.RWMutex
 }
 
 // First, let's create a type for our composite key
@@ -37,6 +42,7 @@ func NewServer() *Server {
 	return &Server{
 		buffers:      make(map[BufferKey]*DataBuffer),
 		connectedIPs: make(map[string]*IPConnection),
+		logBuffers:   make(map[string]*LogBuffer),
 	}
 }
 
@@ -132,6 +138,24 @@ func (cb *CircularBuffer) GetCount() int {
 // GetCapacity returns the total capacity of the buffer
 func (cb *CircularBuffer) GetCapacity() int {
 	return cb.size
+}
+
+// LogBuffer holds log lines for a specific IP
+type LogBuffer struct {
+	ip          string
+	logLines    []string
+	mu          sync.Mutex
+	maxLines    int
+	currentFile *os.File
+}
+
+// NewLogBuffer creates a new log buffer for an IP
+func NewLogBuffer(ip string, maxLines int) *LogBuffer {
+	return &LogBuffer{
+		ip:       ip,
+		logLines: make([]string, 0, maxLines),
+		maxLines: maxLines,
+	}
 }
 
 func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
@@ -259,6 +283,12 @@ func (s *Server) StartListener(port int) {
 		return
 	}
 	defer listener.Close()
+
+	// Initialize UDP log listener if not already started
+	if err := s.InitUDPLogListener(); err != nil {
+		logger.Errorf("Failed to start UDP log listener: %v", err)
+		// Continue anyway, as this is not critical
+	}
 
 	logger.Infof("TCP Server listening on port %d\n", port)
 
@@ -430,6 +460,22 @@ func (s *Server) RemoveIPPort(ip string, port int) {
 		// If no more active ports, remove the IP entirely
 		if len(conn.ActivePorts) == 0 {
 			delete(s.connectedIPs, sanitizedIP)
+
+			// Close log file if it exists
+			s.logBuffersLock.Lock()
+			if buffer, exists := s.logBuffers[sanitizedIP]; exists {
+				buffer.mu.Lock()
+				if buffer.currentFile != nil {
+					buffer.currentFile.WriteString(fmt.Sprintf("=== Log ended at %s for %s ===\n",
+						time.Now().Format(time.RFC3339), ip))
+					buffer.currentFile.Close()
+					buffer.currentFile = nil
+				}
+				buffer.mu.Unlock()
+
+				// Keep the log buffer for history, but close the file
+			}
+			s.logBuffersLock.Unlock()
 		}
 	}
 }
@@ -520,4 +566,158 @@ func (db *DataBuffer) GetBufferStatus() (int, int) {
 	defer db.mu.Unlock()
 
 	return db.circularBuffer.GetCount(), db.circularBuffer.GetCapacity()
+}
+
+// Add a method to stop all listeners and clean up resources
+func (s *Server) StopAllLogListeners() {
+	// Close UDP listener if active
+	s.udpListenerLock.Lock()
+	if s.udpListener != nil {
+		s.udpListener.Close()
+		s.udpListener = nil
+	}
+	s.udpListenerLock.Unlock()
+
+	// Close all log files
+	s.logBuffersLock.Lock()
+	for ip, buffer := range s.logBuffers {
+		buffer.mu.Lock()
+		if buffer.currentFile != nil {
+			buffer.currentFile.WriteString(fmt.Sprintf("=== Log ended at %s for %s ===\n",
+				time.Now().Format(time.RFC3339), ip))
+			buffer.currentFile.Close()
+			buffer.currentFile = nil
+		}
+		buffer.mu.Unlock()
+	}
+	s.logBuffersLock.Unlock()
+}
+
+// Initialize the UDP log listener
+func (s *Server) InitUDPLogListener() error {
+	s.udpListenerLock.Lock()
+	defer s.udpListenerLock.Unlock()
+
+	// If already listening, return
+	if s.udpListener != nil {
+		return nil
+	}
+
+	// Ensure logs directory exists
+	if err := os.MkdirAll("logs", 0755); err != nil {
+		logger.Errorf("Failed to create logs directory: %v", err)
+		return fmt.Errorf("failed to create logs directory: %v", err)
+	}
+
+	// Start UDP listener on port 2403
+	addr := net.UDPAddr{Port: 2403} // Listen on all interfaces
+	conn, err := net.ListenUDP("udp", &addr)
+	if err != nil {
+		logger.Errorf("Failed to start UDP listener for logs: %v", err)
+		return fmt.Errorf("failed to start UDP listener for logs: %v", err)
+	}
+
+	s.udpListener = conn
+
+	// Handle UDP messages in a goroutine
+	go s.HandleUDPLogs(conn)
+
+	logger.Infof("Started UDP log listener on port 2403")
+	return nil
+}
+
+// Handle incoming UDP log messages
+func (s *Server) HandleUDPLogs(conn *net.UDPConn) {
+	defer func() {
+		conn.Close()
+
+		s.udpListenerLock.Lock()
+		s.udpListener = nil
+		s.udpListenerLock.Unlock()
+
+		logger.Infof("UDP log listener closed")
+	}()
+
+	// Buffer for receiving UDP packets
+	packet := make([]byte, 4096)
+
+	for {
+		n, addr, err := conn.ReadFromUDP(packet)
+		if err != nil {
+			logger.Errorf("Error reading UDP logs: %v\n", err)
+			return
+		}
+
+		// Get sender IP
+		senderIP := GetClientIP(addr)
+		sanitizedIP := SanitizeFilename(senderIP)
+
+		// Get or create log buffer for this IP
+		s.logBuffersLock.Lock()
+		logBuffer, exists := s.logBuffers[sanitizedIP]
+		if !exists {
+			logBuffer = NewLogBuffer(sanitizedIP, 500) // Store last 500 lines
+			s.logBuffers[sanitizedIP] = logBuffer
+
+			// Create log file
+			logFileName := fmt.Sprintf("logs_%s_%d.txt", sanitizedIP, time.Now().UnixNano())
+			logFilePath := filepath.Join("logs", logFileName)
+
+			file, err := os.Create(logFilePath)
+			if err != nil {
+				logger.Errorf("Failed to create log file for %s: %v\n", senderIP, err)
+			} else {
+				logBuffer.currentFile = file
+				file.WriteString(fmt.Sprintf("=== Log started at %s for %s ===\n",
+					time.Now().Format(time.RFC3339), senderIP))
+			}
+		}
+		s.logBuffersLock.Unlock()
+
+		// Process the log message
+		logLine := strings.TrimRight(string(packet[:n]), "\x00")
+		timestamp := time.Now().Format(time.RFC3339)
+		formattedLine := fmt.Sprintf("[%s] %s", timestamp, logLine)
+
+		logBuffer.mu.Lock()
+
+		// Add to circular buffer
+		if len(logBuffer.logLines) >= logBuffer.maxLines {
+			// Remove oldest entry if at capacity
+			logBuffer.logLines = append(logBuffer.logLines[1:], formattedLine)
+		} else {
+			// Otherwise just append
+			logBuffer.logLines = append(logBuffer.logLines, formattedLine)
+		}
+
+		// Write to file if open
+		if logBuffer.currentFile != nil {
+			logBuffer.currentFile.WriteString(formattedLine + "\n")
+			logBuffer.currentFile.Sync() // Flush to disk
+		}
+
+		logBuffer.mu.Unlock()
+	}
+}
+
+// Get the last 500 log lines for a specific IP
+func (s *Server) GetLast500Logs(ip string) []string {
+	sanitizedIP := SanitizeFilename(ip)
+
+	s.logBuffersLock.RLock()
+	buffer, exists := s.logBuffers[sanitizedIP]
+	s.logBuffersLock.RUnlock()
+
+	if !exists {
+		return []string{fmt.Sprintf("No logs available for %s", ip)}
+	}
+
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+
+	// Copy all available logs (up to 500)
+	result := make([]string, len(buffer.logLines))
+	copy(result, buffer.logLines)
+
+	return result
 }
