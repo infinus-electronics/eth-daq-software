@@ -14,6 +14,10 @@ export function GetAllRates() {
   return window['go']['main']['App']['GetAllRates']();
 }
 
+export function GetLogs(arg1) {
+  return window['go']['main']['App']['GetLogs'](arg1);
+}
+
 export function GetPortAverage(arg1) {
   return window['go']['main']['App']['GetPortAverage'](arg1);
 }

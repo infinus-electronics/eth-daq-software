@@ -73,6 +73,11 @@ func (a *App) GetAllConnectedIPs() map[string]server.IPConnection {
 	return ips
 }
 
+func (a *App) GetLogs(ip string) []string {
+	logs := a.server.GetLastLogs(ip)
+	return logs
+}
+
 func (a *App) GetPortAverage(key server.BufferKey) float64 {
 	// fmt.Printf("Request: %s, %d\n", key.IP, key.Port)
 	result, _ := a.server.GetPortAverage(key)

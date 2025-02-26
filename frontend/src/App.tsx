@@ -220,6 +220,18 @@ const App = () => {
                         </Column>
                     </Grid>
 
+                    <Grid fullWidth>
+                        <Column lg={16} md={8} sm={4}>
+                            <h2>
+                                Device Logs
+                            </h2>
+                            <p className='inf-device-logs'>
+                                Test
+                                Test
+                            </p>
+                        </Column>
+                    </Grid>
+
 
                 </Content>
                 : <></>}

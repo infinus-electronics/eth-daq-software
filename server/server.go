@@ -639,7 +639,7 @@ func (s *Server) HandleUDPLogs(conn *net.UDPConn) {
 	}()
 
 	// Buffer for receiving UDP packets
-	packet := make([]byte, 4096)
+	packet := make([]byte, 16384)
 
 	for {
 		n, addr, err := conn.ReadFromUDP(packet)
@@ -656,7 +656,7 @@ func (s *Server) HandleUDPLogs(conn *net.UDPConn) {
 		s.logBuffersLock.Lock()
 		logBuffer, exists := s.logBuffers[sanitizedIP]
 		if !exists {
-			logBuffer = NewLogBuffer(sanitizedIP, 500) // Store last 500 lines
+			logBuffer = NewLogBuffer(sanitizedIP, 100) // Store last 500 lines
 			s.logBuffers[sanitizedIP] = logBuffer
 
 			// Create log file
@@ -701,7 +701,7 @@ func (s *Server) HandleUDPLogs(conn *net.UDPConn) {
 }
 
 // Get the last 500 log lines for a specific IP
-func (s *Server) GetLast500Logs(ip string) []string {
+func (s *Server) GetLastLogs(ip string) []string {
 	sanitizedIP := SanitizeFilename(ip)
 
 	s.logBuffersLock.RLock()
@@ -715,9 +715,14 @@ func (s *Server) GetLast500Logs(ip string) []string {
 	buffer.mu.Lock()
 	defer buffer.mu.Unlock()
 
-	// Copy all available logs (up to 500)
+	// Copy the log lines
 	result := make([]string, len(buffer.logLines))
 	copy(result, buffer.logLines)
+
+	// Reverse the array to get newest to oldest order
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
+	}
 
 	return result
 }
