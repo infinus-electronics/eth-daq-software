@@ -1,5 +1,5 @@
 import { use, useEffect, useState } from 'react';
-import { Greet, GetAllConnectedIPs, GetPortAverage, GetLogs } from "../wailsjs/go/main/App";
+import { Greet, GetAllConnectedIPs, GetPortAverage, GetLogs, GetPortRate } from "../wailsjs/go/main/App";
 import "./globals.scss";
 import "./inf.scss"
 import {
@@ -38,6 +38,11 @@ const App = () => {
     const [vdsAverage, setVdsAverage] = useState<number | null>(null);
     const [vgsAverage, setVgsAverage] = useState<number | null>(null);
     const [logs, setLogs] = useState<Array<string>>([]);
+    const [vDSRate, setVDSRate] = useState<number|null>(null);
+    const [vGSRate, setVGSRate] = useState<number|null>(null);
+    const [tcRate, setTCRate] = useState<number|null>(null);
+
+
     // let currentIP: string = "";
     // const [error, setError] = useState(String);
 
@@ -61,6 +66,65 @@ const App = () => {
 
         fetchConnectedIPs();
         const interval = setInterval(fetchConnectedIPs, 200);
+        return () => clearInterval(interval);
+    }, [selectedIP]);
+
+    useEffect(() => {
+        if (!selectedIP) {
+            setLogs([]);
+            return
+        }
+        const fetchLogs = async () => {
+            GetLogs(selectedIP).then((e) => {
+                setLogs(e)
+            }).catch((err) => {
+                console.log("Error fetching logs: ", err)
+            })
+
+        };
+
+        fetchLogs();
+        const interval = setInterval(fetchLogs, 200);
+        return () => clearInterval(interval);
+    }, [selectedIP]);
+
+    useEffect(() => {
+        if (!selectedIP) {
+            setVDSRate(null);
+            setVGSRate(null);
+            setTCRate(null);
+            return
+        }
+        const getPortRates = async () => {
+            let vdsKey:server.BufferKey = {
+                IP: selectedIP.replace(/_/g, '.'),
+                Port: 5555
+            }
+            let vgsKey:server.BufferKey = {
+                IP: selectedIP.replace(/_/g, '.'),
+                Port: 5556
+            }
+            let tcKey:server.BufferKey = {
+                IP: selectedIP.replace(/_/g, '.'),
+                Port: 5557
+            }
+            GetPortRate(vdsKey).then((e) => {
+                setVDSRate(e)
+                return GetPortRate(vgsKey)
+            }).then(e=>{
+                setVGSRate(e)
+                return GetPortRate(tcKey)
+            }).then(e=>{
+                setTCRate(e)
+            })
+            .catch((err) => {
+                console.log("Error fetching port rates: ", err)
+            })
+
+        };
+
+        getPortRates();
+        const interval = setInterval(getPortRates, 500);
         return () => clearInterval(interval);
     }, [selectedIP]);
 
@@ -198,21 +262,46 @@ const App = () => {
                     </Grid>
                     <Grid fullWidth>
 
-                        <Column lg={8} md={4} sm={2}>
+                        <Column lg={16} md={8} sm={4}>
                             <p className='inf-device-info'>
-                                MAC Address:
+                                UUID:
                             </p>
                             <p className='inf-device-info-value'>
                                 FF:FF:FF:FF:FF:FF
                             </p>
                         </Column>
 
-                        <Column lg={8} md={4} sm={2}>
+                        <Column lg={4} md={4} sm={2}>
                             <p className='inf-device-info'>
                                 IP Address:
                             </p>
                             <p className='inf-device-info-value'>
                                 {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
+                            </p>
+                        </Column>
+                        <Column lg={4} md={4} sm={2}>
+                            <p className='inf-device-info'>
+                                V<sub>DS</sub> Port Data Rate:
+                            </p>
+                            <p className='inf-device-info-value'>
+                                {vDSRate ? vDSRate.toFixed(3) : "N/A"} MB/s
+                            </p>
+                        </Column>
+
+                        <Column lg={4} md={4} sm={2}>
+                            <p className='inf-device-info'>
+                                V<sub>GS</sub> Port Data Rate:
+                            </p>
+                            <p className='inf-device-info-value'>
+                                {vGSRate ? vGSRate.toFixed(3) : "N/A"} MB/s
+                            </p>
+                        </Column>
+                        <Column lg={4} md={4} sm={2}>
+                            <p className='inf-device-info'>
+                                Thermocouple Port Data Rate:
+                            </p>
+                            <p className='inf-device-info-value'>
+                                {tcRate ? (tcRate*1000).toFixed(3) : "N/A"} kB/s
                             </p>
                         </Column>
 

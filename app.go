@@ -52,7 +52,7 @@ func (a *App) Greet(name string) string {
 
 // GetPortRate returns the current transfer rate for a specific port
 func (a *App) GetPortRate(key server.BufferKey) float64 {
-	rate, exists := a.server.GetBufferRate(key.IP, key.Port)
+	rate, exists := a.server.GetBufferRate(key)
 	if !exists {
 		return 0
 	}

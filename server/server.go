@@ -405,14 +405,9 @@ func GetClientIP(addr net.Addr) string {
 }
 
 // Modified GetBufferRate to use the composite key
-func (s *Server) GetBufferRate(ip string, port int) (float64, bool) {
+func (s *Server) GetBufferRate(key BufferKey) (float64, bool) {
 	s.buffersLock.RLock()
 	defer s.buffersLock.RUnlock()
-
-	key := BufferKey{
-		IP:   ip,
-		Port: port,
-	}
 
 	if buffer, exists := s.buffers[key]; exists {
 		return buffer.GetRate(), true
