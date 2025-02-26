@@ -38,7 +38,7 @@ const App = () => {
     const [vdsAverage, setVdsAverage] = useState<number | null>(null);
     const [vgsAverage, setVgsAverage] = useState<number | null>(null);
     const [logs, setLogs] = useState<Array<string>>([]);
-    let currentIP: string = "";
+    // let currentIP: string = "";
     // const [error, setError] = useState(String);
 
     useEffect(() => {
@@ -48,6 +48,9 @@ const App = () => {
                 const response = await GetAllConnectedIPs();
                 // console.log('Raw response:', response);
                 setConnectedIPs(response || {});
+                if (selectedIP && !Object.keys(response).includes(selectedIP)){
+                    setSelectedIP(null)
+                }
                 // setError(null);
             } catch (err) {
                 console.error('Error fetching IPs:', err);
@@ -59,7 +62,7 @@ const App = () => {
         fetchConnectedIPs();
         const interval = setInterval(fetchConnectedIPs, 200);
         return () => clearInterval(interval);
-    }, []);
+    }, [selectedIP]);
 
     useEffect(() => {
         if (!selectedIP) {
@@ -140,7 +143,7 @@ const App = () => {
 
     const handleIPSelect = (ip: string) => {
         setSelectedIP(ip);
-        currentIP = ip;
+        // currentIP = ip;
         let devNum = Object.keys(connectedIPs).findIndex(p => p === ip);
         setSelectedDevNum(devNum)
         console.log('Selected IP:', ip);

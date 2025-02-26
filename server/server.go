@@ -30,6 +30,9 @@ type Server struct {
 	logBuffersLock  sync.RWMutex
 	udpListener     *net.UDPConn
 	udpListenerLock sync.RWMutex
+	// Track active connections by IP:Port
+	activeConns     map[BufferKey]net.Conn
+	activeConnsLock sync.RWMutex
 }
 
 // First, let's create a type for our composite key
@@ -43,6 +46,7 @@ func NewServer() *Server {
 		buffers:      make(map[BufferKey]*DataBuffer),
 		connectedIPs: make(map[string]*IPConnection),
 		logBuffers:   make(map[string]*LogBuffer),
+		activeConns:  make(map[BufferKey]net.Conn),
 	}
 }
 
@@ -305,17 +309,31 @@ func (s *Server) StartListener(port int) {
 		clientIP := GetClientIP(conn.RemoteAddr())
 		logger.Infof("New connection on port %d from %s\n", port, clientIP)
 
-		buffer := NewDataBuffer(port, clientIP, 1000)
 		// Create composite key
 		key := BufferKey{
 			IP:   clientIP,
 			Port: port,
 		}
 
-		// Store the buffer in the map using composite key
+		// Register this connection and close any existing ones
+		s.registerConnection(key, conn)
+
+		// Check if we already have a buffer for this IP:Port
 		s.buffersLock.Lock()
-		s.buffers[key] = buffer
+		var buffer *DataBuffer
+		if existingBuffer, exists := s.buffers[key]; exists {
+			// Reuse existing buffer
+			buffer = existingBuffer
+			logger.Infof("Reusing existing buffer for %s:%d\n", clientIP, port)
+		} else {
+			// Create new buffer
+			buffer = NewDataBuffer(port, clientIP, 1000)
+			s.buffers[key] = buffer
+		}
 		s.buffersLock.Unlock()
+
+		// Track IP connection
+		s.AddIPConnection(clientIP, port)
 
 		go s.HandleConnection(conn, buffer, key)
 	}
@@ -326,16 +344,28 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 	s.AddIPConnection(buffer.clientIP, buffer.port)
 
 	defer func() {
+		// Always flush buffer on exit
 		buffer.Flush()
-		//TODO：handle this properly, as is when there is an error the remove port messes things up
-		// s.RemoveIPPort(buffer.clientIP, buffer.port)
+
+		// Close the connection
 		conn.Close()
 
-		s.buffersLock.Lock()
-		delete(s.buffers, key)
-		s.buffersLock.Unlock()
+		// Unregister from active connections only if this is still the active connection
+		s.activeConnsLock.Lock()
+		if currentConn, exists := s.activeConns[key]; exists && currentConn == conn {
+			delete(s.activeConns, key)
 
-		logger.Infof("Connection closed from %s:%d\n", buffer.clientIP, buffer.port)
+			// Only remove the buffer if this was the active connection
+			s.buffersLock.Lock()
+			delete(s.buffers, key)
+			s.buffersLock.Unlock()
+
+			// Remove IP port tracking
+			s.RemoveIPPort(buffer.clientIP, buffer.port)
+
+			logger.Infof("Connection closed from %s:%d\n", buffer.clientIP, buffer.port)
+		}
+		s.activeConnsLock.Unlock()
 	}()
 
 	chunk := make([]byte, 1048576) // 1MB chunks
@@ -349,6 +379,16 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 					err,
 				)
 			}
+			return
+		}
+		// Check if this connection is still the active one
+		s.activeConnsLock.RLock()
+		activeConn, isActive := s.activeConns[key]
+		isCurrentConn := activeConn == conn
+		s.activeConnsLock.RUnlock()
+
+		if !isActive || !isCurrentConn {
+			logger.Infof("Connection %s:%d is no longer active, closing", buffer.clientIP, buffer.port)
 			return
 		}
 		buffer.AddData(chunk[:n])
@@ -756,6 +796,14 @@ func (s *Server) Shutdown() {
 	// First stop the UDP listener to prevent new incoming data
 	s.StopAllLogListeners()
 
+	// Close all active connections
+	s.activeConnsLock.Lock()
+	for key, conn := range s.activeConns {
+		logger.Infof("Closing connection for %s:%d", key.IP, key.Port)
+		conn.Close()
+	}
+	s.activeConnsLock.Unlock()
+
 	// Flush all data buffers and wait for completion
 	s.buffersLock.Lock()
 	buffersCopy := make([]*DataBuffer, 0, len(s.buffers))
@@ -815,4 +863,28 @@ func (s *Server) Shutdown() {
 	}
 
 	logger.Infof("Server shutdown complete")
+}
+
+// Add a method to register an active connection
+func (s *Server) registerConnection(key BufferKey, conn net.Conn) {
+	s.activeConnsLock.Lock()
+	defer s.activeConnsLock.Unlock()
+
+	// Check if there's an existing connection for this IP:Port
+	if existingConn, exists := s.activeConns[key]; exists {
+		// Close the existing connection
+		logger.Infof("Closing existing connection for %s:%d", key.IP, key.Port)
+		existingConn.Close()
+	}
+
+	// Register the new connection
+	s.activeConns[key] = conn
+}
+
+// Add a method to unregister a connection
+func (s *Server) unregisterConnection(key BufferKey) {
+	s.activeConnsLock.Lock()
+	defer s.activeConnsLock.Unlock()
+
+	delete(s.activeConns, key)
 }
