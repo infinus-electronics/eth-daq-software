@@ -64,8 +64,8 @@ const App = () => {
         // Set up the animation frame for GetPortAverage
 
         if (!selectedIP) {
-            setVdsAverage(0);
-            setVgsAverage(0);
+            setVdsAverage(null);
+            setVgsAverage(null);
             return; // Exit early if no IP is selected
         }
 
@@ -200,14 +200,22 @@ const App = () => {
                     <Grid fullWidth>
                         <Column lg={16} md={8} sm={4}>
                             <h2>
-                                V<sub>DS</sub> = {vdsAverage}
+                                V<sub>DS</sub> = {
+                                    vdsAverage === null || vdsAverage === undefined
+                                        ? "-.-"
+                                        : (vdsAverage < 0 ? vdsAverage.toFixed(5) : vdsAverage.toFixed(3))
+                                } V
                             </h2>
                         </Column>
                     </Grid>
                     <Grid fullWidth>
                         <Column lg={16} md={8} sm={4}>
                             <h2>
-                                V<sub>GS</sub> = {vgsAverage}
+                                V<sub>GS</sub> = {
+                                    vgsAverage === null || vgsAverage === undefined
+                                        ? "-.-"
+                                        : vgsAverage.toFixed(4)
+                                } V
                             </h2>
                         </Column>
                     </Grid>
