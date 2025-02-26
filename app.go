@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"eth-daq-software/logger"
+	"eth-daq-software/server"
 	"fmt"
 	"os"
 
-	server "eth-daq-software/internal"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -25,9 +27,10 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	logger.Initialize(ctx)
 
 	if err := os.MkdirAll("data", 0755); err != nil {
-		fmt.Printf("Failed to create data directory: %v\n", err)
+		runtime.LogErrorf(ctx, "Failed to create data directory: %v\n", err)
 		return
 	}
 

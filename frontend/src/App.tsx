@@ -35,7 +35,8 @@ const App = () => {
     const [connectedIPs, setConnectedIPs] = useState<Record<string, server.IPConnection>>({});
     const [selectedIP, setSelectedIP] = useState<string | null>(null);
     const [selectedDevNum, setSelectedDevNum] = useState<number | null>(null);
-    const [portAverage, setPortAverage] = useState<number | null>(null);
+    const [vdsAverage, setVdsAverage] = useState<number | null>(null);
+    const [vgsAverage, setVgsAverage] = useState<number | null>(null);
     let currentIP: string = "";
     // const [error, setError] = useState(String);
 
@@ -63,7 +64,8 @@ const App = () => {
         // Set up the animation frame for GetPortAverage
 
         if (!selectedIP) {
-            setPortAverage(0);
+            setVdsAverage(0);
+            setVgsAverage(0);
             return; // Exit early if no IP is selected
         }
 
@@ -72,27 +74,37 @@ const App = () => {
         let isRunning = true;
         const updatePortAverage = () => {
             if (!isRunning) return;
-            let key: server.BufferKey = {
+            let vdsKey: server.BufferKey = {
                 IP: selectedIP.replace(/_/g, '.'),
                 Port: 5555
+            }
+            let vgsKey: server.BufferKey = {
+                IP: selectedIP.replace(/_/g, '.'),
+                Port: 5556
             }
             // console.log(key)
             // console.log(currentIP)
             // Call GetPortAverage on every frame
-            GetPortAverage(key)
-                .then(result => {
-                    setPortAverage(result);
-                    // console.log("Got port average:", result); // Add logging
+            // First call GetPortAverage on vdsKey
+            GetPortAverage(vdsKey)
+                .then(vdsResult => {
+                    setVdsAverage(vdsResult);
+
+                    // Then call GetPortAverage on vgsKey
+                    return GetPortAverage(vgsKey);
+                })
+                .then(vgsResult => {
+                    setVgsAverage(vgsResult); // Assuming there's a state setter for vgsAverage
                 })
                 .catch(error => {
-                    console.error("Error fetching port average:", error);
+                    console.error("Error fetching port averages:", error);
                 })
-            .finally(() => {
-                // Always request next frame after the current one completes
-                if (isRunning) {
-                    animationFrameId = requestAnimationFrame(updatePortAverage);
-                }
-            });
+                .finally(() => {
+                    // Request next frame only after both calls complete
+                    if (isRunning) {
+                        animationFrameId = requestAnimationFrame(updatePortAverage);
+                    }
+                });
         };
 
         requestAnimationFrame(updatePortAverage);
@@ -150,50 +162,59 @@ const App = () => {
                     </SideNavLink>
                 </SideNavItems>
             </SideNav>
-            <Content>
-                <Grid fullWidth>
+            {selectedIP ?
+                <Content>
 
-                    <Column lg={16} md={8} sm={4}>
-                        <h1>
-                            Device {selectedDevNum}
-                        </h1>
-                    </Column>
-                </Grid>
-                <Grid fullWidth>
+                    <Grid fullWidth>
 
-                    <Column lg={8} md={4} sm={2}>
-                        <p className='inf-device-info'>
-                            MAC Address:
-                        </p>
-                        <p className='inf-device-info-value'>
-                            FF:FF:FF:FF:FF:FF
-                        </p>
-                    </Column>
+                        <Column lg={16} md={8} sm={4}>
+                            <h1>
+                                Device {selectedDevNum}
+                            </h1>
+                        </Column>
+                    </Grid>
+                    <Grid fullWidth>
 
-                    <Column lg={8} md={4} sm={2}>
-                        <p className='inf-device-info'>
-                            IP Address:
-                        </p>
-                        <p className='inf-device-info-value'>
-                            {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
-                        </p>
-                    </Column>
+                        <Column lg={8} md={4} sm={2}>
+                            <p className='inf-device-info'>
+                                MAC Address:
+                            </p>
+                            <p className='inf-device-info-value'>
+                                FF:FF:FF:FF:FF:FF
+                            </p>
+                        </Column>
 
-                </Grid>
+                        <Column lg={8} md={4} sm={2}>
+                            <p className='inf-device-info'>
+                                IP Address:
+                            </p>
+                            <p className='inf-device-info-value'>
+                                {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
+                            </p>
+                        </Column>
 
-
-
-                <Grid fullWidth>
-                    <Column lg={16} md={8} sm={4}>
-                        <h2>
-                            V<sub>DS</sub> = {portAverage}
-                        </h2>
-                    </Column>
-                </Grid>
+                    </Grid>
 
 
-            </Content>
 
+                    <Grid fullWidth>
+                        <Column lg={16} md={8} sm={4}>
+                            <h2>
+                                V<sub>DS</sub> = {vdsAverage}
+                            </h2>
+                        </Column>
+                    </Grid>
+                    <Grid fullWidth>
+                        <Column lg={16} md={8} sm={4}>
+                            <h2>
+                                V<sub>GS</sub> = {vgsAverage}
+                            </h2>
+                        </Column>
+                    </Grid>
+
+
+                </Content>
+                : <></>}
 
             {/* </Theme> */}
         </>

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/binary"
+	"eth-daq-software/logger"
 	"fmt"
 	"io"
 	"maps"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	// "eth-daq-software/logger"
 )
 
 const (
@@ -59,18 +61,18 @@ type DataBuffer struct {
 
 // CircularBuffer implements a fixed-size circular buffer for uint16 values
 type CircularBuffer struct {
-	data       []uint16 // Fixed-size array to hold the values
-	size       int      // Total capacity of the buffer
-	count      int      // Current number of elements in buffer (may be less than size)
-	head       int      // Index where the next element will be inserted
-	sum        uint64   // Running sum of all elements in the buffer
-	isFullOnce bool     // Flag indicating if the buffer has been filled at least once
+	data       []float64 // Fixed-size array to hold the values
+	size       int       // Total capacity of the buffer
+	count      int       // Current number of elements in buffer (may be less than size)
+	head       int       // Index where the next element will be inserted
+	sum        float64   // Running sum of all elements in the buffer
+	isFullOnce bool      // Flag indicating if the buffer has been filled at least once
 }
 
 // NewCircularBuffer creates a new circular buffer with the specified size
 func NewCircularBuffer(size int) *CircularBuffer {
 	return &CircularBuffer{
-		data:       make([]uint16, size),
+		data:       make([]float64, size),
 		size:       size,
 		count:      0,
 		head:       0,
@@ -80,12 +82,12 @@ func NewCircularBuffer(size int) *CircularBuffer {
 }
 
 // Add adds a new value to the circular buffer, overwriting the oldest value if full
-func (cb *CircularBuffer) Add(value uint16) {
+func (cb *CircularBuffer) Add(value float64) {
 	// If the buffer is full, subtract the value that will be overwritten
 	if cb.count == cb.size {
 		// Calculate the index of the value being replaced (the oldest value)
 		oldestIdx := cb.head
-		cb.sum -= uint64(cb.data[oldestIdx])
+		cb.sum -= cb.data[oldestIdx]
 	} else {
 		// Buffer isn't full yet, so increment count
 		cb.count++
@@ -93,7 +95,7 @@ func (cb *CircularBuffer) Add(value uint16) {
 
 	// Add the new value to the buffer
 	cb.data[cb.head] = value
-	cb.sum += uint64(value)
+	cb.sum += value
 
 	// Move the head to the next position
 	cb.head = (cb.head + 1) % cb.size
@@ -165,7 +167,7 @@ func (db *DataBuffer) AddData(data []byte) {
 	if elapsed >= 1.0 {
 		rate := float64(db.bytesReceived) / elapsed / 1024 / 1024 // MB/s
 		db.rate = rate
-		fmt.Printf("Port %d - %s Rate: %.2f MB/s\n", db.port, db.clientIP, rate)
+		logger.Debugf("Port %d - %s Rate: %.2f MB/s\n", db.port, db.clientIP, rate)
 		db.bytesReceived = 0
 		db.lastCheck = time.Now()
 	}
@@ -191,8 +193,17 @@ func (db *DataBuffer) processBytes(newBytes []byte) {
 	// Process all complete uint16 samples (pairs of bytes)
 	completeBytes := len(tempBuffer) - (len(tempBuffer) % 2)
 	for i := 0; i < completeBytes; i += 2 {
-		// Convert pair of bytes to uint16 (big-endian)
-		sample := binary.BigEndian.Uint16(tempBuffer[i : i+2])
+		var sample float64
+		if db.port == 5555 {
+			// Convert pair of bytes to uint16 (big-endian)
+			// HS ADC sample processing
+			sample = float64(int16(binary.LittleEndian.Uint16(tempBuffer[i : i+2])))
+			sample = sample * -1 / 32768 * 2.5
+		} else {
+			// GADC sample processing
+			sample = float64(binary.LittleEndian.Uint16(tempBuffer[i : i+2]))
+			sample = sample*187.5e-6 - 6.144
+		}
 
 		// Add to our circular buffer
 		db.circularBuffer.Add(sample)
@@ -234,9 +245,9 @@ func (db *DataBuffer) Flush() {
 	go func(data []byte, filename string) {
 		err := os.WriteFile(filepath.Join("data", filename), data, 0644)
 		if err != nil {
-			fmt.Printf("Failed to write file: %v\n", err)
+			logger.Errorf("Failed to write file: %v\n", err)
 		} else {
-			fmt.Printf("Written %d bytes to %s\n", len(data), filename)
+			logger.Infof("Written %d bytes to %s\n", len(data), filename)
 		}
 	}(data, filename)
 }
@@ -244,22 +255,22 @@ func (db *DataBuffer) Flush() {
 func (s *Server) StartListener(port int) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		fmt.Printf("Failed to start server on port %d: %v\n", port, err)
+		logger.Errorf("Failed to start server on port %d: %v\n", port, err)
 		return
 	}
 	defer listener.Close()
 
-	fmt.Printf("TCP Server listening on port %d\n", port)
+	logger.Infof("TCP Server listening on port %d\n", port)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Printf("Failed to accept connection on port %d: %v\n", port, err)
+			logger.Errorf("Failed to accept connection on port %d: %v\n", port, err)
 			continue
 		}
 
 		clientIP := GetClientIP(conn.RemoteAddr())
-		fmt.Printf("New connection on port %d from %s\n", port, clientIP)
+		logger.Infof("New connection on port %d from %s\n", port, clientIP)
 
 		buffer := NewDataBuffer(port, clientIP, 1000)
 		// Create composite key
@@ -290,7 +301,7 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 		delete(s.buffers, key)
 		s.buffersLock.Unlock()
 
-		fmt.Printf("Connection closed from %s:%d\n", buffer.clientIP, buffer.port)
+		logger.Infof("Connection closed from %s:%d\n", buffer.clientIP, buffer.port)
 	}()
 
 	chunk := make([]byte, 1048576) // 1MB chunks
@@ -298,7 +309,7 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 		n, err := conn.Read(chunk)
 		if err != nil {
 			if err != io.EOF {
-				fmt.Printf("Error reading from %s:%d: %v\n",
+				logger.Errorf("Error reading from %s:%d: %v\n",
 					buffer.clientIP,
 					buffer.port,
 					err,
