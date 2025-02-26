@@ -41,6 +41,9 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 }
+func (a *App) shutdown(ctx context.Context) {
+	a.server.Shutdown()
+}
 
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {

@@ -265,6 +265,9 @@ func (db *DataBuffer) Flush() {
 	)
 	db.buffer = make([]byte, 0, BUFFER_SIZE)
 
+	// Make sure the data directory exists
+	os.MkdirAll("data", 0755)
+
 	// Handle write asynchronously
 	go func(data []byte, filename string) {
 		err := os.WriteFile(filepath.Join("data", filename), data, 0644)
@@ -725,4 +728,90 @@ func (s *Server) GetLastLogs(ip string) []string {
 	}
 
 	return result
+}
+
+// Shutdown properly shuts down the server and cleans up resources
+func (s *Server) ShutdownSimple() {
+	logger.Infof("Shutting down server...")
+	s.StopAllLogListeners()
+
+	// Flush any remaining data buffers
+	s.buffersLock.Lock()
+	for _, buffer := range s.buffers {
+		buffer.Flush()
+	}
+	s.buffersLock.Unlock()
+
+	logger.Infof("Server shutdown complete")
+}
+
+// Enhanced Shutdown method with better flushing guarantees
+func (s *Server) Shutdown() {
+	logger.Infof("Shutting down server - flushing all data buffers...")
+
+	// Use a WaitGroup to ensure all flush operations complete
+	var wg sync.WaitGroup
+
+	// First stop the UDP listener to prevent new incoming data
+	s.StopAllLogListeners()
+
+	// Flush all data buffers and wait for completion
+	s.buffersLock.Lock()
+	buffersCopy := make([]*DataBuffer, 0, len(s.buffers))
+	for _, buffer := range s.buffers {
+		buffersCopy = append(buffersCopy, buffer)
+	}
+	s.buffersLock.Unlock()
+
+	// Actually perform the flush operations outside the lock
+	for _, buffer := range buffersCopy {
+		wg.Add(1)
+		go func(b *DataBuffer) {
+			defer wg.Done()
+			logger.Infof("Flushing buffer for %s:%d", b.clientIP, b.port)
+
+			// Take a more direct approach to flushing
+			b.mu.Lock()
+			data := make([]byte, len(b.buffer))
+			copy(data, b.buffer)
+			b.buffer = nil // Clear the buffer
+			b.mu.Unlock()
+
+			// Write data directly and synchronously
+			if len(data) > 0 {
+				filename := fmt.Sprintf("port%d_%s_%d.bin",
+					b.port,
+					b.clientIP,
+					time.Now().UnixNano(),
+				)
+
+				// Make sure the data directory exists
+				os.MkdirAll("data", 0755)
+
+				// Write synchronously
+				err := os.WriteFile(filepath.Join("data", filename), data, 0644)
+				if err != nil {
+					logger.Errorf("Failed to write final flush file: %v", err)
+				} else {
+					logger.Infof("Final flush: Written %d bytes to %s", len(data), filename)
+				}
+			}
+		}(buffer)
+	}
+
+	// Wait with timeout to ensure we don't hang indefinitely
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		logger.Infof("All data buffers flushed successfully")
+	case <-time.After(5 * time.Second):
+		logger.Errorf("Timed out waiting for buffers to flush - some data may be lost")
+	}
+
+	logger.Infof("Server shutdown complete")
 }
