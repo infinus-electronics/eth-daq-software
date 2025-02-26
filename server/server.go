@@ -327,7 +327,8 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 
 	defer func() {
 		buffer.Flush()
-		s.RemoveIPPort(buffer.clientIP, buffer.port)
+		//TODO：handle this properly, as is when there is an error the remove port messes things up
+		// s.RemoveIPPort(buffer.clientIP, buffer.port)
 		conn.Close()
 
 		s.buffersLock.Lock()
