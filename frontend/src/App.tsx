@@ -1,5 +1,5 @@
 import { use, useEffect, useState } from 'react';
-import { Greet, GetAllConnectedIPs, GetPortAverage } from "../wailsjs/go/main/App";
+import { Greet, GetAllConnectedIPs, GetPortAverage, GetLogs } from "../wailsjs/go/main/App";
 import "./globals.scss";
 import "./inf.scss"
 import {
@@ -37,6 +37,7 @@ const App = () => {
     const [selectedDevNum, setSelectedDevNum] = useState<number | null>(null);
     const [vdsAverage, setVdsAverage] = useState<number | null>(null);
     const [vgsAverage, setVgsAverage] = useState<number | null>(null);
+    const [logs, setLogs] = useState<Array<string>>([]);
     let currentIP: string = "";
     // const [error, setError] = useState(String);
 
@@ -56,9 +57,28 @@ const App = () => {
         };
 
         fetchConnectedIPs();
-        const interval = setInterval(fetchConnectedIPs, 1000);
+        const interval = setInterval(fetchConnectedIPs, 200);
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (!selectedIP){
+            setLogs([]);
+            return
+        }
+        const fetchLogs = async () => {
+            GetLogs(selectedIP).then((e)=>{
+                setLogs(e)
+            }).catch((err)=>{
+                console.log("Error fetching logs: ", err)
+            })
+            
+        };
+
+        fetchLogs();
+        const interval = setInterval(fetchLogs, 200);
+        return () => clearInterval(interval);
+    }, [selectedIP]);
 
     useEffect(() => {
         // Set up the animation frame for GetPortAverage
@@ -225,10 +245,16 @@ const App = () => {
                             <h2>
                                 Device Logs
                             </h2>
-                            <p className='inf-device-logs'>
-                                Test
-                                Test
-                            </p>
+                            </Column>
+                            <Column lg={16} md={8} sm={4}>
+                            {logs.map(e=>{
+                                return (
+<p className='inf-device-logs'>
+                                {e}
+                                </p>
+                                )
+                            })}
+                            
                         </Column>
                     </Grid>
 
