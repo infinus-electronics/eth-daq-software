@@ -1117,3 +1117,32 @@ func (s *Server) HandleHandshakeConnection(conn net.Conn) {
 	// 	logger.Errorf("Failed to send handshake response to %s: %v\n", clientIP, err)
 	// }
 }
+
+func (s *Server) GetIPConnectionData(ip string) (IPConnection, bool) {
+	s.connectedIPsLock.RLock()
+	defer s.connectedIPsLock.RUnlock()
+
+	key := SanitizeFilename(ip)
+
+	if connection, exists := s.connectedIPs[key]; exists {
+		// Create a deep copy of the connection
+		connectionCopy := IPConnection{
+			ActivePorts:     make(map[int]bool),
+			TotalBytes:      connection.TotalBytes,
+			UUID:            connection.UUID,
+			MAC:             connection.MAC,
+			FirmwareVersion: connection.FirmwareVersion,
+			HardwareVersion: connection.HardwareVersion,
+			VgsSampleRate:   connection.VgsSampleRate,
+			VdsSampleRate:   connection.VdsSampleRate,
+			TcSampleRate:    connection.TcSampleRate,
+		}
+
+		// Deep copy the map
+		maps.Copy(connectionCopy.ActivePorts, connection.ActivePorts)
+
+		return connectionCopy, true
+	}
+
+	return IPConnection{}, false
+}

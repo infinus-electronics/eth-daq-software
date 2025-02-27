@@ -8,6 +8,8 @@ export function GetAllConnectedIPs():Promise<Record<string, server.IPConnection>
 
 export function GetAllRates():Promise<Record<string, number>>;
 
+export function GetIPConnectionData(arg1:string):Promise<server.IPConnection>;
+
 export function GetLogs(arg1:string):Promise<Array<string>>;
 
 export function GetPortAverage(arg1:server.BufferKey):Promise<number>;

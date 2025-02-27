@@ -14,6 +14,10 @@ export function GetAllRates() {
   return window['go']['main']['App']['GetAllRates']();
 }
 
+export function GetIPConnectionData(arg1) {
+  return window['go']['main']['App']['GetIPConnectionData'](arg1);
+}
+
 export function GetLogs(arg1) {
   return window['go']['main']['App']['GetLogs'](arg1);
 }

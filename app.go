@@ -93,6 +93,11 @@ func (a *App) GetPortAverageB(key server.BufferKey) float64 {
 	return result
 }
 
+func (a *App) GetIPConnectionData(ip string) server.IPConnection {
+	result, _ := a.server.GetIPConnectionData(ip)
+	return result
+}
+
 // Add this method to expose the type
 func (a *App) DUMMYGetIPConnectionDetails(conn server.IPConnection) string {
 	// Just a dummy method to expose the type
