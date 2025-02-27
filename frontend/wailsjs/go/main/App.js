@@ -22,6 +22,10 @@ export function GetPortAverage(arg1) {
   return window['go']['main']['App']['GetPortAverage'](arg1);
 }
 
+export function GetPortAverageB(arg1) {
+  return window['go']['main']['App']['GetPortAverageB'](arg1);
+}
+
 export function GetPortRate(arg1) {
   return window['go']['main']['App']['GetPortRate'](arg1);
 }

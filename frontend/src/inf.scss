@@ -6,6 +6,10 @@
     font-weight: bold;
 }
 
+.inf-meas-result-value {
+    font-weight: bold;
+}
+
 .inf-device-logs-container {
 
     // overflow-y: scroll;
@@ -16,10 +20,14 @@
     border: 1px solid #e0e0e0;
     border-radius: 1px;
     padding: 0.5rem;
-    margin-top: 0.5rem;
+    // margin-top: 0.5rem;
 }
 
 .inf-device-log-entry {
     font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
     font-size: small;
+}
+
+.inf-section-heading {
+    margin-bottom: 0.5rem;
 }

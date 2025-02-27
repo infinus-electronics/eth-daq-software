@@ -56,17 +56,19 @@ type IPConnection struct {
 }
 
 type DataBuffer struct {
-	port           int
-	clientIP       string
-	buffer         []byte
-	mu             sync.Mutex
-	bytesReceived  int64
-	lastCheck      time.Time
-	rate           float64
-	circularBuffer *CircularBuffer // Circular buffer to hold the last N samples
-	lastAverage    float64         // Last calculated average
-	leftoverByte   *byte
-	hasLeftover    bool
+	port                       int
+	clientIP                   string
+	buffer                     []byte
+	mu                         sync.Mutex
+	bytesReceived              int64
+	lastCheck                  time.Time
+	rate                       float64
+	circularBuffer             *CircularBuffer // Circular buffer to hold the last N samples
+	circularBufferB            *CircularBuffer // only used for thermocouple
+	lastAverage                float64         // Last calculated average
+	leftoverByte               *byte
+	hasLeftover                bool
+	tcInterleaveSelectInternal bool // Channel selection, only used for thermocouple reading
 }
 
 // CircularBuffer implements a fixed-size circular buffer for uint16 values
@@ -163,16 +165,32 @@ func NewLogBuffer(ip string, maxLines int) *LogBuffer {
 }
 
 func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
-	return &DataBuffer{
-		port:           port,
-		clientIP:       SanitizeFilename(clientIP),
-		buffer:         make([]byte, 0, BUFFER_SIZE),
-		lastCheck:      time.Now(),
-		lastAverage:    0,
-		circularBuffer: NewCircularBuffer(avgWindowSize),
-		leftoverByte:   nil,
-		hasLeftover:    false,
+	if port == 5557 {
+		return &DataBuffer{
+			port:                       port,
+			clientIP:                   SanitizeFilename(clientIP),
+			buffer:                     make([]byte, 0, BUFFER_SIZE),
+			lastCheck:                  time.Now(),
+			lastAverage:                0,
+			circularBuffer:             NewCircularBuffer(avgWindowSize),
+			circularBufferB:            NewCircularBuffer(avgWindowSize),
+			leftoverByte:               nil,
+			hasLeftover:                false,
+			tcInterleaveSelectInternal: false,
+		}
+	} else {
+		return &DataBuffer{
+			port:           port,
+			clientIP:       SanitizeFilename(clientIP),
+			buffer:         make([]byte, 0, BUFFER_SIZE),
+			lastCheck:      time.Now(),
+			lastAverage:    0,
+			circularBuffer: NewCircularBuffer(avgWindowSize),
+			leftoverByte:   nil,
+			hasLeftover:    false,
+		}
 	}
+
 }
 
 // GetRate returns the current transfer rate for this buffer
@@ -227,14 +245,27 @@ func (db *DataBuffer) processBytes(newBytes []byte) {
 			// HS ADC sample processing
 			sample = float64(int16(binary.LittleEndian.Uint16(tempBuffer[i : i+2])))
 			sample = sample * -1 / 32768 * 2.5
-		} else {
+			// Add to our circular buffer
+			db.circularBuffer.Add(sample)
+		} else if db.port == 5556 {
 			// GADC sample processing
 			sample = float64(binary.LittleEndian.Uint16(tempBuffer[i : i+2]))
 			sample = sample*187.5e-6 - 6.144
+			// Add to our circular buffer
+			db.circularBuffer.Add(sample)
+		} else {
+			// Thermocouple result processing
+			sample = float64(int16(binary.LittleEndian.Uint16(tempBuffer[i : i+2])))
+			if db.tcInterleaveSelectInternal { // read internal temp sensor
+				sample = sample * 0.03125
+				db.circularBuffer.Add(sample)
+			} else {
+				// add K type logic here
+				db.circularBufferB.Add(sample)
+			}
+			db.tcInterleaveSelectInternal = !db.tcInterleaveSelectInternal // switch channels
 		}
 
-		// Add to our circular buffer
-		db.circularBuffer.Add(sample)
 	}
 
 	// Check if we have a leftover byte
@@ -327,7 +358,13 @@ func (s *Server) StartListener(port int) {
 			logger.Infof("Reusing existing buffer for %s:%d\n", clientIP, port)
 		} else {
 			// Create new buffer
-			buffer = NewDataBuffer(port, clientIP, 1000)
+			if port == 5557 {
+				buffer = NewDataBuffer(port, clientIP, 5)
+
+			} else {
+				buffer = NewDataBuffer(port, clientIP, 1000)
+			}
+
 			s.buffers[key] = buffer
 		}
 		s.buffersLock.Unlock()
@@ -579,6 +616,19 @@ func (s *Server) GetPortAverage(key BufferKey) (float64, bool) {
 	}
 }
 
+func (s *Server) GetPortAverageB(key BufferKey) (float64, bool) {
+	s.buffersLock.RLock()
+	defer s.buffersLock.RUnlock()
+	// fmt.Printf("%s,%d \n", key.IP, key.Port)
+
+	if buffer, exists := s.buffers[key]; exists {
+		// fmt.Println(buffer.clientIP)
+		return buffer.CalculateAverageB()
+	} else {
+		return 0.0, false
+	}
+}
+
 // CalculateAverage calculates the current average of samples in the circular buffer
 // Returns the average and whether the buffer has been filled at least once
 func (db *DataBuffer) CalculateAverage() (float64, bool) {
@@ -587,6 +637,16 @@ func (db *DataBuffer) CalculateAverage() (float64, bool) {
 
 	db.lastAverage = db.circularBuffer.GetAverage()
 	isFullOnce := db.circularBuffer.IsFullOnce()
+
+	return db.lastAverage, isFullOnce
+}
+
+func (db *DataBuffer) CalculateAverageB() (float64, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	db.lastAverage = db.circularBufferB.GetAverage()
+	isFullOnce := db.circularBufferB.IsFullOnce()
 
 	return db.lastAverage, isFullOnce
 }

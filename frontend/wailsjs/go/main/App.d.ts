@@ -12,6 +12,8 @@ export function GetLogs(arg1:string):Promise<Array<string>>;
 
 export function GetPortAverage(arg1:server.BufferKey):Promise<number>;
 
+export function GetPortAverageB(arg1:server.BufferKey):Promise<number>;
+
 export function GetPortRate(arg1:server.BufferKey):Promise<number>;
 
 export function Greet(arg1:string):Promise<string>;
