@@ -176,7 +176,7 @@ func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
 			circularBufferB:            NewCircularBuffer(avgWindowSize),
 			leftoverByte:               nil,
 			hasLeftover:                false,
-			tcInterleaveSelectInternal: false,
+			tcInterleaveSelectInternal: true,
 		}
 	} else {
 		return &DataBuffer{
@@ -257,7 +257,7 @@ func (db *DataBuffer) processBytes(newBytes []byte) {
 			// Thermocouple result processing
 			sample = float64(int16(binary.LittleEndian.Uint16(tempBuffer[i : i+2])))
 			if db.tcInterleaveSelectInternal { // read internal temp sensor
-				sample = sample * 0.03125
+				sample = sample / 4 * 0.03125
 				db.circularBuffer.Add(sample)
 			} else {
 				// add K type logic here
