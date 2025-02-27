@@ -229,6 +229,17 @@ const App = () => {
         console.log('Selected IP:', ip);
     };
 
+    // A simple component that displays "N/A" when the string is empty, null, or undefined
+    const processEmptyString = (value: string | null | undefined) => {
+        // Check if value is empty, null, or undefined
+        const isEmpty = value === null || value === undefined || value === '';
+        if (isEmpty) {
+            return "N/A"
+        }
+        return (
+            value
+        );
+    };
 
     return (
         <>
@@ -286,7 +297,7 @@ const App = () => {
                                 UUID:
                             </p>
                             <p className='inf-device-info-value'>
-                                {connectedIPs[selectedIP] ? connectedIPs[selectedIP].UUID:"N/A"}
+                                {processEmptyString(connectedIPs[selectedIP].UUID)}
                             </p>
                         </Column>
 
@@ -334,58 +345,58 @@ const App = () => {
                             </h2>
                         </Column>
                         <Column lg={8} md={8} sm={4}>
-                        <Grid>
-                            <Column span={16}>
-                            <h4>
-                                V<sub>DS</sub>: <span className='inf-meas-result-value'>{
-                                    vdsAverage === null || vdsAverage === undefined
-                                        ? "-.-"
-                                        : (vdsAverage < 0 ? vdsAverage.toFixed(5) : vdsAverage.toFixed(3))
-                                } V </span>
-                            </h4>
-                            </Column>
-                            <Column span = {16}>
-                            <h4>
-                                V<sub>GS</sub>: <span className='inf-meas-result-value'>{
-                                    vgsAverage === null || vgsAverage === undefined
-                                        ? "-.-"
-                                        : vgsAverage.toFixed(4)
-                                } V </span>
-                            </h4>
-                        </Column>
-                        </Grid>
-                            
+                            <Grid>
+                                <Column span={16}>
+                                    <h4>
+                                        V<sub>DS</sub>: <span className='inf-meas-result-value'>{
+                                            vdsAverage === null || vdsAverage === undefined
+                                                ? "-.-"
+                                                : (vdsAverage < 0 ? vdsAverage.toFixed(5) : vdsAverage.toFixed(3))
+                                        } V </span>
+                                    </h4>
+                                </Column>
+                                <Column span={16}>
+                                    <h4>
+                                        V<sub>GS</sub>: <span className='inf-meas-result-value'>{
+                                            vgsAverage === null || vgsAverage === undefined
+                                                ? "-.-"
+                                                : vgsAverage.toFixed(4)
+                                        } V </span>
+                                    </h4>
+                                </Column>
+                            </Grid>
+
                         </Column>
 
-                        
+
 
                         <Column lg={8} md={8} sm={4}>
-                        <Grid>
-                        <Column span = {16}>
-                        <h4>
-                                Internal Temperature: <span className='inf-meas-result-value'>{
-                                    intTempAverage === null || intTempAverage === undefined
-                                        ? "-.-"
-                                        : intTempAverage.toFixed(4)
-                                } °C</span>
-                            </h4>
-                        </Column>
-                        <Column span={16}>
-                            <h4>
-                                Thermocouple Temperature: <span className='inf-meas-result-value'>{
-                                    tcAverage === null || tcAverage === undefined
-                                        ? "-.-"
-                                        : tcAverage.toFixed(4)
-                                } °C</span>
-                            </h4>
-                        </Column>
-                        </Grid>
-                            
+                            <Grid>
+                                <Column span={16}>
+                                    <h4>
+                                        Internal Temperature: <span className='inf-meas-result-value'>{
+                                            intTempAverage === null || intTempAverage === undefined
+                                                ? "-.-"
+                                                : intTempAverage.toFixed(4)
+                                        } °C</span>
+                                    </h4>
+                                </Column>
+                                <Column span={16}>
+                                    <h4>
+                                        Thermocouple Temperature: <span className='inf-meas-result-value'>{
+                                            tcAverage === null || tcAverage === undefined
+                                                ? "-.-"
+                                                : tcAverage.toFixed(4)
+                                        } °C</span>
+                                    </h4>
+                                </Column>
+                            </Grid>
+
                         </Column>
 
-                        
-                        </Grid>
-                        <Grid fullWidth>
+
+                    </Grid>
+                    <Grid fullWidth>
                         <Column lg={16} md={8} sm={4}>
                             <h2 className="inf-section-heading">
                                 Device Logs
