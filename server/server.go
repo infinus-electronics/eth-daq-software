@@ -66,6 +66,7 @@ type DataBuffer struct {
 	circularBuffer             *CircularBuffer // Circular buffer to hold the last N samples
 	circularBufferB            *CircularBuffer // only used for thermocouple
 	lastAverage                float64         // Last calculated average
+	lastAverageB               float64
 	leftoverByte               *byte
 	hasLeftover                bool
 	tcInterleaveSelectInternal bool // Channel selection, only used for thermocouple reading
@@ -172,6 +173,7 @@ func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
 			buffer:                     make([]byte, 0, BUFFER_SIZE),
 			lastCheck:                  time.Now(),
 			lastAverage:                0,
+			lastAverageB:               0,
 			circularBuffer:             NewCircularBuffer(avgWindowSize),
 			circularBufferB:            NewCircularBuffer(avgWindowSize),
 			leftoverByte:               nil,
@@ -645,10 +647,10 @@ func (db *DataBuffer) CalculateAverageB() (float64, bool) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	db.lastAverage = db.circularBufferB.GetAverage()
+	db.lastAverageB = db.circularBufferB.GetAverage()
 	isFullOnce := db.circularBufferB.IsFullOnce()
 
-	return db.lastAverage, isFullOnce
+	return db.lastAverageB, isFullOnce
 }
 
 // GetLastAverage returns the last calculated average without recalculating
