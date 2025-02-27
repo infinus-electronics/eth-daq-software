@@ -291,49 +291,112 @@ const App = () => {
                         <Column lg={16} md={8} sm={4}>
                             <h2 className="inf-section-heading">Device Info</h2>
                         </Column>
+                        <Column lg={8} md={4} sm={2}>
+                            <Grid fullWidth>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        UUID:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {processEmptyString(connectedIPs[selectedIP].UUID)}
+                                    </p>
+                                </Column>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        Firmware:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {processEmptyString(connectedIPs[selectedIP].FirmwareVersion)}
+                                    </p>
+                                </Column>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        Hardware:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {processEmptyString(connectedIPs[selectedIP].HardwareVersion)}
+                                    </p>
+                                </Column>
 
-                        <Column lg={16} md={8} sm={4}>
-                            <p className='inf-device-info'>
-                                UUID:
-                            </p>
-                            <p className='inf-device-info-value'>
-                                {processEmptyString(connectedIPs[selectedIP].UUID)}
-                            </p>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        IP Address:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
+                                    </p>
+                                </Column>
+
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        MAC Address:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {processEmptyString(connectedIPs[selectedIP].MAC)}
+                                    </p>
+                                </Column>
+
+
+                            </Grid>
+                        </Column>
+                        <Column lg={8} md={4} sm={2}>
+                            <Grid fullWidth>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        V<sub>DS</sub> Sample Rate:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {(connectedIPs[selectedIP].VdsSampleRate / 1000)} kSPS
+                                    </p>
+                                </Column>
+
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        V<sub>GS</sub> Sample Rate:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {(connectedIPs[selectedIP].VgsSampleRate / 1000)} kSPS
+                                    </p>
+                                </Column>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        Thermocouple Sample Rate:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {(connectedIPs[selectedIP].TcSampleRate)} SPS
+                                    </p>
+                                </Column>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        V<sub>DS</sub> Port Data Rate:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {vDSRate ? vDSRate.toFixed(3) : "N/A"} MB/s
+                                    </p>
+                                </Column>
+
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        V<sub>GS</sub> Port Data Rate:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {vGSRate ? vGSRate.toFixed(3) : "N/A"} MB/s
+                                    </p>
+                                </Column>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        Thermocouple Port Data Rate:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {tcRate ? (tcRate * 1000).toFixed(3) : "N/A"} kB/s
+                                    </p>
+                                </Column>
+                            </Grid>
                         </Column>
 
-                        <Column lg={4} md={4} sm={2}>
-                            <p className='inf-device-info'>
-                                IP Address:
-                            </p>
-                            <p className='inf-device-info-value'>
-                                {selectedIP ? selectedIP.replace(/_/g, '.') : 'N/A'}
-                            </p>
-                        </Column>
-                        <Column lg={4} md={4} sm={2}>
-                            <p className='inf-device-info'>
-                                V<sub>DS</sub> Port Data Rate:
-                            </p>
-                            <p className='inf-device-info-value'>
-                                {vDSRate ? vDSRate.toFixed(3) : "N/A"} MB/s
-                            </p>
-                        </Column>
 
-                        <Column lg={4} md={4} sm={2}>
-                            <p className='inf-device-info'>
-                                V<sub>GS</sub> Port Data Rate:
-                            </p>
-                            <p className='inf-device-info-value'>
-                                {vGSRate ? vGSRate.toFixed(3) : "N/A"} MB/s
-                            </p>
-                        </Column>
-                        <Column lg={4} md={4} sm={2}>
-                            <p className='inf-device-info'>
-                                Thermocouple Port Data Rate:
-                            </p>
-                            <p className='inf-device-info-value'>
-                                {tcRate ? (tcRate * 1000).toFixed(3) : "N/A"} kB/s
-                            </p>
-                        </Column>
+
+
 
                     </Grid>
 
