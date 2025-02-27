@@ -18,6 +18,12 @@ export namespace server {
 	    ActivePorts: Record<number, boolean>;
 	    TotalBytes: number;
 	    UUID: string;
+	    MAC: string;
+	    FirmwareVersion: string;
+	    HardwareVersion: string;
+	    VgsSampleRate: number;
+	    VdsSampleRate: number;
+	    TcSampleRate: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new IPConnection(source);
@@ -28,6 +34,12 @@ export namespace server {
 	        this.ActivePorts = source["ActivePorts"];
 	        this.TotalBytes = source["TotalBytes"];
 	        this.UUID = source["UUID"];
+	        this.MAC = source["MAC"];
+	        this.FirmwareVersion = source["FirmwareVersion"];
+	        this.HardwareVersion = source["HardwareVersion"];
+	        this.VgsSampleRate = source["VgsSampleRate"];
+	        this.VdsSampleRate = source["VdsSampleRate"];
+	        this.TcSampleRate = source["TcSampleRate"];
 	    }
 	}
 

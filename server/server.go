@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -55,9 +56,15 @@ func NewServer() *Server {
 }
 
 type IPConnection struct {
-	ActivePorts map[int]bool
-	TotalBytes  int64
-	UUID        string // Add this field to store the device UUID
+	ActivePorts     map[int]bool
+	TotalBytes      int64
+	UUID            string // Add this field to store the device UUID
+	MAC             string
+	FirmwareVersion string
+	HardwareVersion string
+	VgsSampleRate   int
+	VdsSampleRate   int
+	TcSampleRate    int
 }
 
 type DataBuffer struct {
@@ -396,16 +403,16 @@ func (s *Server) StartListener(port int) {
 		// }
 		// s.buffersLock.Unlock()
 
-		// Check if we already have a buffer for this IP:Port
+		// Check if we already have a buffer for this IP:Port:UUID combo
 		s.buffersLock.Lock()
 		var buffer *DataBuffer
-		if existingBuffer, exists := s.buffers[key]; exists {
+		if existingBuffer, exists := s.buffers[key]; exists && existingBuffer.uuid == uuid {
 			// Reuse existing buffer
 			buffer = existingBuffer
 			// Update UUID if it's now available
-			if buffer.uuid == "" && uuid != "" {
-				buffer.uuid = uuid
-			}
+			// if buffer.uuid == "" && uuid != "" {
+			// 	buffer.uuid = uuid
+			// }
 			logger.Infof("Reusing existing buffer for %s:%d (UUID: %s)\n", clientIP, port, buffer.uuid)
 		} else {
 			// Create new buffer
@@ -1057,12 +1064,27 @@ func (s *Server) HandleHandshakeConnection(conn net.Conn) {
 	sanitizedIP := SanitizeFilename(clientIP)
 	if ipConn, exists := s.connectedIPs[sanitizedIP]; exists {
 		ipConn.UUID = handshakeData.UUID
+		ipConn.FirmwareVersion = handshakeData.FirmwareVersion
+		ipConn.HardwareVersion = handshakeData.HardwareVersion
+		ipConn.MAC = handshakeData.MAC
+		ipConn.VdsSampleRate, _ = strconv.Atoi(handshakeData.VdsSampleRate)
+		ipConn.VgsSampleRate, _ = strconv.Atoi(handshakeData.VgsSampleRate)
+		ipConn.TcSampleRate, _ = strconv.Atoi(handshakeData.TcSampleRate)
 		// You might want to store other handshake data as well
 	} else {
+		vdsSampleRate, _ := strconv.Atoi(handshakeData.VdsSampleRate)
+		vgsSampleRate, _ := strconv.Atoi(handshakeData.VgsSampleRate)
+		tcSampleRate, _ := strconv.Atoi(handshakeData.TcSampleRate)
 		s.connectedIPs[sanitizedIP] = &IPConnection{
-			ActivePorts: make(map[int]bool),
-			TotalBytes:  0,
-			UUID:        handshakeData.UUID,
+			ActivePorts:     make(map[int]bool),
+			TotalBytes:      0,
+			UUID:            handshakeData.UUID,
+			FirmwareVersion: handshakeData.FirmwareVersion,
+			HardwareVersion: handshakeData.HardwareVersion,
+			MAC:             handshakeData.MAC,
+			VdsSampleRate:   vdsSampleRate,
+			VgsSampleRate:   vgsSampleRate,
+			TcSampleRate:    tcSampleRate,
 		}
 	}
 	s.connectedIPsLock.Unlock()
