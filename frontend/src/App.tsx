@@ -286,7 +286,7 @@ const App = () => {
                                 UUID:
                             </p>
                             <p className='inf-device-info-value'>
-                                {connectedIPs[selectedIP]?connectedIPs[selectedIP].UUID:"N/A"}
+                                {connectedIPs[selectedIP] ? connectedIPs[selectedIP].UUID:"N/A"}
                             </p>
                         </Column>
 

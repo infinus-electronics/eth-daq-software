@@ -1140,6 +1140,7 @@ func (s *Server) GetIPConnectionData(ip string) (IPConnection, bool) {
 
 		// Deep copy the map
 		maps.Copy(connectionCopy.ActivePorts, connection.ActivePorts)
+		logger.Debugf(spew.Sprintf("Returned Connection Data: %#v", connectionCopy))
 
 		return connectionCopy, true
 	}
