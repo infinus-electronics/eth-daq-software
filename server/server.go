@@ -661,11 +661,18 @@ func (s *Server) GetAllConnectedIPs() map[string]IPConnection {
 
 	// Create a deep copy of the map
 	result := make(map[string]IPConnection)
-	for ip, conn := range s.connectedIPs {
+	for ip, connection := range s.connectedIPs {
 		result[ip] = IPConnection{
 
-			ActivePorts: maps.Clone(conn.ActivePorts),
-			TotalBytes:  conn.TotalBytes,
+			ActivePorts:     maps.Clone(connection.ActivePorts),
+			TotalBytes:      connection.TotalBytes,
+			UUID:            connection.UUID,
+			MAC:             connection.MAC,
+			FirmwareVersion: connection.FirmwareVersion,
+			HardwareVersion: connection.HardwareVersion,
+			VgsSampleRate:   connection.VgsSampleRate,
+			VdsSampleRate:   connection.VdsSampleRate,
+			TcSampleRate:    connection.TcSampleRate,
 		}
 	}
 	return result
