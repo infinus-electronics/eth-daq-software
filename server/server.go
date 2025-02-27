@@ -1026,9 +1026,9 @@ func (s *Server) HandleHandshakeConnection(conn net.Conn) {
 		MAC             string `json:"mac"`
 		FirmwareVersion string `json:"firmware,omitempty"`
 		HardwareVersion string `json:"hardware,omitempty"`
-		VgsSampleRate   uint32 `json:"vgsSampleRate,omitempty"`
-		VdsSampleRate   uint32 `json:"vdsSampleRate,omitempty"`
-		TcSampleRate    uint32 `json:"tcSampleRate,omitempty"`
+		VgsSampleRate   string `json:"vgsSampleRate,omitempty"`
+		VdsSampleRate   string `json:"vdsSampleRate,omitempty"`
+		TcSampleRate    string `json:"tcSampleRate,omitempty"`
 		// Add any other fields you expect in the handshake
 	}
 
