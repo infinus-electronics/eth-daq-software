@@ -34,7 +34,7 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 
-	ports := []int{5555, 5556, 5557}
+	ports := []int{5002, 5555, 5556, 5557}
 
 	for _, port := range ports {
 		go a.server.StartListener(port)

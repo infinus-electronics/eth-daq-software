@@ -17,6 +17,7 @@ export namespace server {
 	export class IPConnection {
 	    ActivePorts: Record<number, boolean>;
 	    TotalBytes: number;
+	    UUID: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new IPConnection(source);
@@ -26,6 +27,7 @@ export namespace server {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ActivePorts = source["ActivePorts"];
 	        this.TotalBytes = source["TotalBytes"];
+	        this.UUID = source["UUID"];
 	    }
 	}
 

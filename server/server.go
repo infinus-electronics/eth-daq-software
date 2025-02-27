@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"eth-daq-software/logger"
 	"fmt"
 	"io"
@@ -12,7 +13,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	// "eth-daq-software/logger"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -53,6 +57,7 @@ func NewServer() *Server {
 type IPConnection struct {
 	ActivePorts map[int]bool
 	TotalBytes  int64
+	UUID        string // Add this field to store the device UUID
 }
 
 type DataBuffer struct {
@@ -69,7 +74,9 @@ type DataBuffer struct {
 	lastAverageB               float64
 	leftoverByte               *byte
 	hasLeftover                bool
-	tcInterleaveSelectInternal bool // Channel selection, only used for thermocouple reading
+	tcInterleaveSelectInternal bool   // Channel selection, only used for thermocouple reading
+	uuid                       string // Add this field to store the device UUID
+
 }
 
 // CircularBuffer implements a fixed-size circular buffer for uint16 values
@@ -165,7 +172,7 @@ func NewLogBuffer(ip string, maxLines int) *LogBuffer {
 	}
 }
 
-func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
+func NewDataBuffer(port int, clientIP string, avgWindowSize int, uuid string) *DataBuffer {
 	if port == 5557 {
 		return &DataBuffer{
 			port:                       port,
@@ -179,6 +186,7 @@ func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
 			leftoverByte:               nil,
 			hasLeftover:                false,
 			tcInterleaveSelectInternal: true,
+			uuid:                       uuid,
 		}
 	} else {
 		return &DataBuffer{
@@ -190,6 +198,7 @@ func NewDataBuffer(port int, clientIP string, avgWindowSize int) *DataBuffer {
 			circularBuffer: NewCircularBuffer(avgWindowSize),
 			leftoverByte:   nil,
 			hasLeftover:    false,
+			uuid:           uuid,
 		}
 	}
 
@@ -295,9 +304,10 @@ func (db *DataBuffer) Flush() {
 	copy(data, db.buffer)
 
 	// Generate filename and reset buffer immediately
-	filename := fmt.Sprintf("port%d_%s_%d.bin",
+	filename := fmt.Sprintf("port%d_%s_%s_%d.bin",
 		db.port,
 		db.clientIP,
+		db.uuid, // Include UUID in the filename
 		time.Now().UnixNano(),
 	)
 	db.buffer = make([]byte, 0, BUFFER_SIZE)
@@ -317,6 +327,7 @@ func (db *DataBuffer) Flush() {
 }
 
 func (s *Server) StartListener(port int) {
+
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		logger.Errorf("Failed to start server on port %d: %v\n", port, err)
@@ -348,8 +359,42 @@ func (s *Server) StartListener(port int) {
 			Port: port,
 		}
 
+		// Special handling for port 5002 (handshake)
+		if port == 5002 {
+			go s.HandleHandshakeConnection(conn)
+			continue
+		}
+
+		// Get UUID for this IP, if available
+		uuid := ""
+		s.connectedIPsLock.RLock()
+		if ipConn, exists := s.connectedIPs[SanitizeFilename(clientIP)]; exists {
+			uuid = ipConn.UUID
+		}
+		s.connectedIPsLock.RUnlock()
+
 		// Register this connection and close any existing ones
 		s.registerConnection(key, conn)
+
+		// Check if we already have a buffer for this IP:Port
+		// s.buffersLock.Lock()
+		// var buffer *DataBuffer
+		// if existingBuffer, exists := s.buffers[key]; exists {
+		// 	// Reuse existing buffer
+		// 	buffer = existingBuffer
+		// 	logger.Infof("Reusing existing buffer for %s:%d\n", clientIP, port)
+		// } else {
+		// 	// Create new buffer
+		// 	if port == 5557 {
+		// 		buffer = NewDataBuffer(port, clientIP, 5)
+
+		// 	} else {
+		// 		buffer = NewDataBuffer(port, clientIP, 1000)
+		// 	}
+
+		// 	s.buffers[key] = buffer
+		// }
+		// s.buffersLock.Unlock()
 
 		// Check if we already have a buffer for this IP:Port
 		s.buffersLock.Lock()
@@ -357,22 +402,24 @@ func (s *Server) StartListener(port int) {
 		if existingBuffer, exists := s.buffers[key]; exists {
 			// Reuse existing buffer
 			buffer = existingBuffer
-			logger.Infof("Reusing existing buffer for %s:%d\n", clientIP, port)
+			// Update UUID if it's now available
+			if buffer.uuid == "" && uuid != "" {
+				buffer.uuid = uuid
+			}
+			logger.Infof("Reusing existing buffer for %s:%d (UUID: %s)\n", clientIP, port, buffer.uuid)
 		} else {
 			// Create new buffer
 			if port == 5557 {
-				buffer = NewDataBuffer(port, clientIP, 5)
-
+				buffer = NewDataBuffer(port, clientIP, 5, uuid)
 			} else {
-				buffer = NewDataBuffer(port, clientIP, 1000)
+				buffer = NewDataBuffer(port, clientIP, 1000, uuid)
 			}
-
 			s.buffers[key] = buffer
 		}
 		s.buffersLock.Unlock()
 
 		// Track IP connection
-		s.AddIPConnection(clientIP, port)
+		s.AddIPConnection(clientIP, port, uuid)
 
 		go s.HandleConnection(conn, buffer, key)
 	}
@@ -380,7 +427,15 @@ func (s *Server) StartListener(port int) {
 
 // Modified HandleConnection to include the buffer key
 func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferKey) {
-	s.AddIPConnection(buffer.clientIP, buffer.port)
+	// Get UUID for this IP, if available
+	uuid := ""
+	s.connectedIPsLock.RLock()
+	if ipConn, exists := s.connectedIPs[SanitizeFilename(key.IP)]; exists {
+		uuid = ipConn.UUID
+	}
+	s.connectedIPsLock.RUnlock()
+
+	s.AddIPConnection(buffer.clientIP, buffer.port, uuid)
 
 	defer func() {
 		// Always flush buffer on exit
@@ -508,7 +563,7 @@ func SanitizeFilename(ip string) string {
 
 // TODO: do we really need sanitized IPs?
 // AddIPConnection records or updates an IP connection
-func (s *Server) AddIPConnection(ip string, port int) {
+func (s *Server) AddIPConnection(ip string, port int, uuid string) {
 	s.connectedIPsLock.Lock()
 	defer s.connectedIPsLock.Unlock()
 
@@ -522,8 +577,11 @@ func (s *Server) AddIPConnection(ip string, port int) {
 
 			ActivePorts: map[int]bool{port: true},
 			TotalBytes:  0,
+			UUID:        uuid,
 		}
 	}
+
+	logger.Infof(spew.Sprintf("Current IP Connections: %#v", s.connectedIPs))
 }
 
 // RemoveIPPort removes a port from an IP's active connections
@@ -556,6 +614,7 @@ func (s *Server) RemoveIPPort(ip string, port int) {
 			s.logBuffersLock.Unlock()
 		}
 	}
+	logger.Infof(spew.Sprint("Current IP Connections: %#v", s.connectedIPs))
 }
 
 // UpdateIPBytes updates the total bytes transferred for an IP
@@ -944,4 +1003,95 @@ func (s *Server) unregisterConnection(key BufferKey) {
 	defer s.activeConnsLock.Unlock()
 
 	delete(s.activeConns, key)
+}
+
+func (s *Server) HandleHandshakeConnection(conn net.Conn) {
+	defer conn.Close()
+
+	clientIP := GetClientIP(conn.RemoteAddr())
+
+	// Buffer for reading the handshake data
+	buffer := make([]byte, 4096)
+
+	// Read handshake data
+	n, err := conn.Read(buffer)
+	if err != nil {
+		logger.Errorf("Error reading handshake from %s: %v\n", clientIP, err)
+		return
+	}
+
+	// Define a struct to match the expected JSON structure
+	type HandshakeData struct {
+		UUID            string `json:"uuid"`
+		MAC             string `json:"mac"`
+		FirmwareVersion string `json:"firmware,omitempty"`
+		HardwareVersion string `json:"hardware,omitempty"`
+		VgsSampleRate   uint32 `json:"vgsSampleRate,omitempty"`
+		VdsSampleRate   uint32 `json:"vdsSampleRate,omitempty"`
+		TcSampleRate    uint32 `json:"tcSampleRate,omitempty"`
+		// Add any other fields you expect in the handshake
+	}
+
+	// Parse the JSON data
+	var handshakeData HandshakeData
+	if err := json.Unmarshal(buffer[:n], &handshakeData); err != nil {
+		logger.Errorf("Failed to parse handshake JSON from %s: %v\n", clientIP, err)
+		// Send error response
+		// conn.Write([]byte(`{"status":"error","message":"Invalid JSON format"}`))
+		return
+	}
+
+	// Validate required fields
+	if handshakeData.UUID == "" {
+		logger.Errorf("Missing UUID in handshake from %s\n", clientIP)
+		// conn.Write([]byte(`{"status":"error","message":"UUID is required"}`))
+		return
+	}
+
+	// Log the received handshake data
+	logger.Infof("Received handshake from %s: UUID=%s, Hardware=%s, Firmware=%s\n",
+		clientIP, handshakeData.UUID, handshakeData.HardwareVersion, handshakeData.FirmwareVersion)
+
+	// Store the UUID for this IP
+	s.connectedIPsLock.Lock()
+	sanitizedIP := SanitizeFilename(clientIP)
+	if ipConn, exists := s.connectedIPs[sanitizedIP]; exists {
+		ipConn.UUID = handshakeData.UUID
+		// You might want to store other handshake data as well
+	} else {
+		s.connectedIPs[sanitizedIP] = &IPConnection{
+			ActivePorts: make(map[int]bool),
+			TotalBytes:  0,
+			UUID:        handshakeData.UUID,
+		}
+	}
+	s.connectedIPsLock.Unlock()
+
+	// Update existing data buffers with this UUID
+	s.buffersLock.Lock()
+	for key, buffer := range s.buffers {
+		if key.IP == sanitizedIP {
+			buffer.uuid = handshakeData.UUID
+		}
+	}
+	s.buffersLock.Unlock()
+
+	// Send acknowledgment as JSON
+	// response := struct {
+	// 	Status  string `json:"status"`
+	// 	Message string `json:"message"`
+	// }{
+	// 	Status:  "success",
+	// 	Message: "Handshake complete",
+	// }
+
+	// responseJSON, err := json.Marshal(response)
+	// if err != nil {
+	// 	logger.Errorf("Failed to create response JSON: %v\n", err)
+	// 	return
+	// }
+
+	// if _, err := conn.Write(responseJSON); err != nil {
+	// 	logger.Errorf("Failed to send handshake response to %s: %v\n", clientIP, err)
+	// }
 }
