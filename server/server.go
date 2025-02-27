@@ -24,35 +24,10 @@ const (
 	BUFFER_SIZE = 10 * 1024 * 1024 // 10MB
 )
 
-type Server struct {
-	buffers     map[BufferKey]*DataBuffer
-	buffersLock sync.RWMutex
-	// Track IP addresses and their connection times
-	connectedIPs     map[string]*IPConnection
-	connectedIPsLock sync.RWMutex
-	// New log-related fields
-	logBuffers      map[string]*LogBuffer
-	logBuffersLock  sync.RWMutex
-	udpListener     *net.UDPConn
-	udpListenerLock sync.RWMutex
-	// Track active connections by IP:Port
-	activeConns     map[BufferKey]net.Conn
-	activeConnsLock sync.RWMutex
-}
-
 // First, let's create a type for our composite key
 type BufferKey struct {
 	IP   string
 	Port int
-}
-
-func NewServer() *Server {
-	return &Server{
-		buffers:      make(map[BufferKey]*DataBuffer),
-		connectedIPs: make(map[string]*IPConnection),
-		logBuffers:   make(map[string]*LogBuffer),
-		activeConns:  make(map[BufferKey]net.Conn),
-	}
 }
 
 type IPConnection struct {
@@ -65,25 +40,6 @@ type IPConnection struct {
 	VgsSampleRate   int
 	VdsSampleRate   int
 	TcSampleRate    int
-}
-
-type DataBuffer struct {
-	port                       int
-	clientIP                   string
-	buffer                     []byte
-	mu                         sync.Mutex
-	bytesReceived              int64
-	lastCheck                  time.Time
-	rate                       float64
-	circularBuffer             *CircularBuffer // Circular buffer to hold the last N samples
-	circularBufferB            *CircularBuffer // only used for thermocouple
-	lastAverage                float64         // Last calculated average
-	lastAverageB               float64
-	leftoverByte               *byte
-	hasLeftover                bool
-	tcInterleaveSelectInternal bool   // Channel selection, only used for thermocouple reading
-	uuid                       string // Add this field to store the device UUID
-
 }
 
 // CircularBuffer implements a fixed-size circular buffer for uint16 values
@@ -177,6 +133,25 @@ func NewLogBuffer(ip string, maxLines int) *LogBuffer {
 		logLines: make([]string, 0, maxLines),
 		maxLines: maxLines,
 	}
+}
+
+type DataBuffer struct {
+	port                       int
+	clientIP                   string
+	buffer                     []byte
+	mu                         sync.Mutex
+	bytesReceived              int64
+	lastCheck                  time.Time
+	rate                       float64
+	circularBuffer             *CircularBuffer // Circular buffer to hold the last N samples
+	circularBufferB            *CircularBuffer // only used for thermocouple
+	lastAverage                float64         // Last calculated average
+	lastAverageB               float64
+	leftoverByte               *byte
+	hasLeftover                bool
+	tcInterleaveSelectInternal bool   // Channel selection, only used for thermocouple reading
+	uuid                       string // Add this field to store the device UUID
+
 }
 
 func NewDataBuffer(port int, clientIP string, avgWindowSize int, uuid string) *DataBuffer {
@@ -331,6 +306,69 @@ func (db *DataBuffer) Flush() {
 			logger.Infof("Written %d bytes to %s\n", len(data), filename)
 		}
 	}(data, filename)
+}
+
+// CalculateAverage calculates the current average of samples in the circular buffer
+// Returns the average and whether the buffer has been filled at least once
+func (db *DataBuffer) CalculateAverage() (float64, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	db.lastAverage = db.circularBuffer.GetAverage()
+	isFullOnce := db.circularBuffer.IsFullOnce()
+
+	return db.lastAverage, isFullOnce
+}
+
+func (db *DataBuffer) CalculateAverageB() (float64, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	db.lastAverageB = db.circularBufferB.GetAverage()
+	isFullOnce := db.circularBufferB.IsFullOnce()
+
+	return db.lastAverageB, isFullOnce
+}
+
+// GetLastAverage returns the last calculated average without recalculating
+func (db *DataBuffer) GetLastAverage() float64 {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	return db.lastAverage
+}
+
+// GetBufferStatus returns the current state of the circular buffer (count/capacity)
+func (db *DataBuffer) GetBufferStatus() (int, int) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	return db.circularBuffer.GetCount(), db.circularBuffer.GetCapacity()
+}
+
+type Server struct {
+	buffers     map[BufferKey]*DataBuffer
+	buffersLock sync.RWMutex
+	// Track IP addresses and their connection times
+	connectedIPs     map[string]*IPConnection
+	connectedIPsLock sync.RWMutex
+	// New log-related fields
+	logBuffers      map[string]*LogBuffer
+	logBuffersLock  sync.RWMutex
+	udpListener     *net.UDPConn
+	udpListenerLock sync.RWMutex
+	// Track active connections by IP:Port
+	activeConns     map[BufferKey]net.Conn
+	activeConnsLock sync.RWMutex
+}
+
+func NewServer() *Server {
+	return &Server{
+		buffers:      make(map[BufferKey]*DataBuffer),
+		connectedIPs: make(map[string]*IPConnection),
+		logBuffers:   make(map[string]*LogBuffer),
+		activeConns:  make(map[BufferKey]net.Conn),
+	}
 }
 
 func (s *Server) StartListener(port int) {
@@ -702,44 +740,6 @@ func (s *Server) GetPortAverageB(key BufferKey) (float64, bool) {
 	} else {
 		return 0.0, false
 	}
-}
-
-// CalculateAverage calculates the current average of samples in the circular buffer
-// Returns the average and whether the buffer has been filled at least once
-func (db *DataBuffer) CalculateAverage() (float64, bool) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	db.lastAverage = db.circularBuffer.GetAverage()
-	isFullOnce := db.circularBuffer.IsFullOnce()
-
-	return db.lastAverage, isFullOnce
-}
-
-func (db *DataBuffer) CalculateAverageB() (float64, bool) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	db.lastAverageB = db.circularBufferB.GetAverage()
-	isFullOnce := db.circularBufferB.IsFullOnce()
-
-	return db.lastAverageB, isFullOnce
-}
-
-// GetLastAverage returns the last calculated average without recalculating
-func (db *DataBuffer) GetLastAverage() float64 {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	return db.lastAverage
-}
-
-// GetBufferStatus returns the current state of the circular buffer (count/capacity)
-func (db *DataBuffer) GetBufferStatus() (int, int) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	return db.circularBuffer.GetCount(), db.circularBuffer.GetCapacity()
 }
 
 // Add a method to stop all listeners and clean up resources
