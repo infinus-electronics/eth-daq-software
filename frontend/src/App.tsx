@@ -391,6 +391,29 @@ const App = () => {
                                         {tcRate ? (tcRate * 1000).toFixed(3) : "N/A"} kB/s
                                     </p>
                                 </Column>
+                                <Column span={16}>
+                                    <p className='inf-device-info'>
+                                        Total Data Received:
+                                    </p>
+                                    <p className='inf-device-info-value'>
+                                        {((e:number)=>{
+                                            var res = ""
+                                            if(e<1024){
+                                                res = e.toFixed(2).concat(" bytes")
+                                            }
+                                            else if (e<1024*1024){
+                                                res = (e/1024).toFixed(2).concat(" kB")
+                                            }
+                                            else if (e<1024*1024*1024){
+                                                res = (e/1024/1024).toFixed(2).concat(" MB")
+                                            }
+                                            else {
+                                                res = (e/1024/1024/1024).toFixed(2).concat(" MB")
+                                            }
+                                            return res
+                                    })(connectedIPs[selectedIP].TotalBytes) }
+                                    </p>
+                                </Column>
                             </Grid>
                         </Column>
 
