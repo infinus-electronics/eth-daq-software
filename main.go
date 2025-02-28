@@ -2,6 +2,10 @@ package main
 
 import (
 	"embed"
+	"flag"
+	"log"
+	"os"
+	"runtime/pprof"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -13,6 +17,17 @@ import (
 var assets embed.FS
 
 func main() {
+	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	var memprofile = flag.String("memprofile", "", "write memory profile to this file")
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 	// Create an instance of the app structure
 	app := NewApp()
 
@@ -40,5 +55,14 @@ func main() {
 
 	if err != nil {
 		println("Error:", err.Error())
+	}
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		f.Close()
+		return
 	}
 }

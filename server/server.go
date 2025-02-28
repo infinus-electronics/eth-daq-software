@@ -195,7 +195,6 @@ func (db *DataBuffer) GetRate() float64 {
 
 func (db *DataBuffer) AddData(data []byte) {
 	db.mu.Lock()
-	defer db.mu.Unlock()
 
 	db.buffer = append(db.buffer, data...)
 	db.bytesReceived += int64(len(data))
@@ -210,6 +209,7 @@ func (db *DataBuffer) AddData(data []byte) {
 		db.bytesReceived = 0
 		db.lastCheck = time.Now()
 	}
+	db.mu.Unlock()
 
 	if len(db.buffer) >= BUFFER_SIZE {
 		db.Flush()
@@ -275,15 +275,22 @@ func (db *DataBuffer) processBytes(newBytes []byte) {
 }
 
 func (db *DataBuffer) Flush() {
-	// db.mu.Lock()
-	// defer db.mu.Unlock()
+	db.mu.Lock()
+
 	if len(db.buffer) == 0 {
+		db.mu.Unlock()
 		return
 	}
 
 	// Copy the buffer data while the mutex is held
-	data := make([]byte, len(db.buffer))
-	copy(data, db.buffer)
+
+	// Use the buffer directly
+	data := db.buffer
+	// data := make([]byte, len(db.buffer))
+	// copy(data, db.buffer)
+	// Reset the buffer but keep the capacity
+	db.buffer = make([]byte, 0, cap(db.buffer))
+	db.mu.Unlock()
 
 	// Generate filename and reset buffer immediately
 	filename := fmt.Sprintf("port%d_%s_%s_%d.bin",
@@ -292,7 +299,7 @@ func (db *DataBuffer) Flush() {
 		db.uuid, // Include UUID in the filename
 		time.Now().UnixNano(),
 	)
-	db.buffer = make([]byte, 0, BUFFER_SIZE)
+	// db.buffer = make([]byte, 0, BUFFER_SIZE)
 
 	// Make sure the data directory exists
 	os.MkdirAll("data", 0755)
