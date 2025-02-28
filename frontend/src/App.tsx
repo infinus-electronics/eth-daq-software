@@ -408,7 +408,7 @@ const App = () => {
                                                 res = (e/1024/1024).toFixed(2).concat(" MB")
                                             }
                                             else {
-                                                res = (e/1024/1024/1024).toFixed(2).concat(" MB")
+                                                res = (e/1024/1024/1024).toFixed(2).concat(" GB")
                                             }
                                             return res
                                     })(connectedIPs[selectedIP].TotalBytes) }
