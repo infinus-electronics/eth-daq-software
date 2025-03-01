@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/binary"
 	"encoding/json"
+	"eth-daq-software/compress"
 	"eth-daq-software/logger"
 	"fmt"
 	"io"
@@ -209,10 +210,13 @@ func (db *DataBuffer) AddData(data []byte) {
 		db.bytesReceived = 0
 		db.lastCheck = time.Now()
 	}
-	db.mu.Unlock()
+	// db.mu.Unlock()
 
 	if len(db.buffer) >= BUFFER_SIZE {
-		db.Flush()
+		db.mu.Unlock()
+		db.FlushAsync()
+	} else {
+		db.mu.Unlock()
 	}
 }
 
@@ -274,8 +278,9 @@ func (db *DataBuffer) processBytes(newBytes []byte) {
 	}
 }
 
-func (db *DataBuffer) Flush() {
+func (db *DataBuffer) FlushAsync() {
 	db.mu.Lock()
+	// logger.Debugf(spew.Sprintf("FlushAsync :%#v"), db)
 
 	if len(db.buffer) == 0 {
 		db.mu.Unlock()
@@ -306,13 +311,60 @@ func (db *DataBuffer) Flush() {
 
 	// Handle write asynchronously
 	go func(data []byte, filename string) {
-		err := os.WriteFile(filepath.Join("data", filename), data, 0644)
+		compressedData := compress.HybridRLECompress(data)
+		err := os.WriteFile(filepath.Join("data", filename), compressedData, 0644)
 		if err != nil {
 			logger.Errorf("Failed to write file: %v\n", err)
 		} else {
-			logger.Infof("Written %d bytes to %s\n", len(data), filename)
+			logger.Infof("Written %d bytes to %s, compression ratio: %f\n", len(compressedData), filename, (float64(len(data)) / float64(len(compressedData))))
 		}
 	}(data, filename)
+}
+
+func (db *DataBuffer) FlushSync() error {
+	db.mu.Lock()
+	// logger.Debugf(spew.Sprintf("FlushSync: %#v", db))
+	if len(db.buffer) == 0 {
+		logger.Debugf("FlushSync: Zero Length!\n")
+		db.mu.Unlock()
+		return nil
+	}
+
+	// Copy the buffer data while the mutex is held
+
+	// Use the buffer directly
+	data := db.buffer
+	// data := make([]byte, len(db.buffer))
+	// copy(data, db.buffer)
+	// Reset the buffer but keep the capacity
+	db.buffer = make([]byte, 0, cap(db.buffer))
+	db.mu.Unlock()
+
+	// Generate filename and reset buffer immediately
+	filename := fmt.Sprintf("port%d_%s_%s_%d.bin",
+		db.port,
+		db.clientIP,
+		db.uuid, // Include UUID in the filename
+		time.Now().UnixNano(),
+	)
+	// db.buffer = make([]byte, 0, BUFFER_SIZE)
+
+	// Make sure the data directory exists
+	os.MkdirAll("data", 0755)
+
+	// Handle write synchronously
+
+	compressedData := compress.HybridRLECompress(data)
+	logger.Debugf("Data Compressed\n")
+	err := os.WriteFile(filepath.Join("data", filename), compressedData, 0644)
+	if err != nil {
+		logger.Errorf("Failed to write file: %v\n", err)
+		return err
+	} else {
+		logger.Infof("Written %d bytes to %s, compression ratio: %f\n", len(compressedData), filename, (float64(len(data)) / float64(len(compressedData))))
+		return nil
+	}
+
 }
 
 // CalculateAverage calculates the current average of samples in the circular buffer
@@ -367,6 +419,8 @@ type Server struct {
 	// Track active connections by IP:Port
 	activeConns     map[BufferKey]net.Conn
 	activeConnsLock sync.RWMutex
+	connectionWg    sync.WaitGroup // Global WaitGroup for tracking all connection handling goroutines
+
 }
 
 func NewServer() *Server {
@@ -479,6 +533,8 @@ func (s *Server) StartListener(port int) {
 
 // Modified HandleConnection to include the buffer key
 func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferKey) {
+	// Increment the WaitGroup when starting a connection handler
+	s.connectionWg.Add(1)
 	// Get UUID for this IP, if available
 	uuid := ""
 	s.connectedIPsLock.RLock()
@@ -490,8 +546,8 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 	s.AddIPConnection(buffer.clientIP, buffer.port, uuid)
 
 	defer func() {
-		// Always flush buffer on exit
-		buffer.Flush()
+		// Always FlushSync buffer on exit
+		buffer.FlushSync()
 
 		// Close the connection
 		conn.Close()
@@ -510,6 +566,7 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 			s.RemoveIPPort(buffer.clientIP, buffer.port)
 
 			logger.Infof("Connection closed from %s:%d\n", buffer.clientIP, buffer.port)
+			s.connectionWg.Done()
 		}
 		s.activeConnsLock.Unlock()
 	}()
@@ -525,6 +582,8 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 					err,
 				)
 			}
+			// //EOF, flush sync here
+			// buffer.FlushSync()
 			return
 		}
 		// Check if this connection is still the active one
@@ -538,6 +597,7 @@ func (s *Server) HandleConnection(conn net.Conn, buffer *DataBuffer, key BufferK
 			return
 		}
 		buffer.AddData(chunk[:n])
+		// logger.Debugf("AddData Called\n")
 		s.UpdateIPBytes(buffer.clientIP, int64(n))
 	}
 }
@@ -874,7 +934,7 @@ func (s *Server) HandleUDPLogs(conn *net.UDPConn) {
 		// Write to file if open
 		if logBuffer.currentFile != nil {
 			logBuffer.currentFile.WriteString(formattedLine + "\n")
-			logBuffer.currentFile.Sync() // Flush to disk
+			logBuffer.currentFile.Sync() // FlushAsync to disk
 		}
 
 		logBuffer.mu.Unlock()
@@ -913,22 +973,22 @@ func (s *Server) ShutdownSimple() {
 	logger.Infof("Shutting down server...")
 	s.StopAllLogListeners()
 
-	// Flush any remaining data buffers
+	// FlushAsync any remaining data buffers
 	s.buffersLock.Lock()
 	for _, buffer := range s.buffers {
-		buffer.Flush()
+		buffer.FlushAsync()
 	}
 	s.buffersLock.Unlock()
 
 	logger.Infof("Server shutdown complete")
 }
 
-// Enhanced Shutdown method with better flushing guarantees
+// Enhanced Shutdown method with better FlushAsyncing guarantees
 func (s *Server) Shutdown() {
-	logger.Infof("Shutting down server - flushing all data buffers...")
+	logger.Infof("Shutting down server...")
 
-	// Use a WaitGroup to ensure all flush operations complete
-	var wg sync.WaitGroup
+	// // Use a WaitGroup to ensure all FlushAsync operations complete
+	// var wg sync.WaitGroup
 
 	// First stop the UDP listener to prevent new incoming data
 	s.StopAllLogListeners()
@@ -941,64 +1001,21 @@ func (s *Server) Shutdown() {
 	}
 	s.activeConnsLock.Unlock()
 
-	// Flush all data buffers and wait for completion
-	s.buffersLock.Lock()
-	buffersCopy := make([]*DataBuffer, 0, len(s.buffers))
-	for _, buffer := range s.buffers {
-		buffersCopy = append(buffersCopy, buffer)
-	}
-	s.buffersLock.Unlock()
-
-	// Actually perform the flush operations outside the lock
-	for _, buffer := range buffersCopy {
-		wg.Add(1)
-		go func(b *DataBuffer) {
-			defer wg.Done()
-			logger.Infof("Flushing buffer for %s:%d", b.clientIP, b.port)
-
-			// Take a more direct approach to flushing
-			b.mu.Lock()
-			data := make([]byte, len(b.buffer))
-			copy(data, b.buffer)
-			b.buffer = nil // Clear the buffer
-			b.mu.Unlock()
-
-			// Write data directly and synchronously
-			if len(data) > 0 {
-				filename := fmt.Sprintf("port%d_%s_%d.bin",
-					b.port,
-					b.clientIP,
-					time.Now().UnixNano(),
-				)
-
-				// Make sure the data directory exists
-				os.MkdirAll("data", 0755)
-
-				// Write synchronously
-				err := os.WriteFile(filepath.Join("data", filename), data, 0644)
-				if err != nil {
-					logger.Errorf("Failed to write final flush file: %v", err)
-				} else {
-					logger.Infof("Final flush: Written %d bytes to %s", len(data), filename)
-				}
-			}
-		}(buffer)
-	}
-
-	// Wait with timeout to ensure we don't hang indefinitely
+	// Wait with timeout for all HandleConnection goroutines to complete
+	// This includes their buffer flushes since Done() is called after flushing
 	done := make(chan struct{})
 	go func() {
-		wg.Wait()
+		s.connectionWg.Wait()
+		logger.Infof("Global connection tracking WaitGroup done")
 		close(done)
 	}()
 
 	select {
 	case <-done:
-		logger.Infof("All data buffers flushed successfully")
-	case <-time.After(5 * time.Second):
-		logger.Errorf("Timed out waiting for buffers to flush - some data may be lost")
+		logger.Infof("All connections and flushes completed successfully")
+	case <-time.After(10 * time.Second):
+		logger.Errorf("Timed out waiting for connections to complete - some data may be lost")
 	}
-
 	logger.Infof("Server shutdown complete")
 }
 
