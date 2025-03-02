@@ -77,6 +77,86 @@ func decompressRLE(compressedData []RLEData, expectedLength int) []uint16 {
 	return result
 }
 
+// compressRLEUnrolled compresses the 12 MSB array using run-length encoding with loop unrolling
+// Handles cases where run length might exceed uint32 max value
+func compressRLEUnrolled(msb12Bits []uint16) []RLEData {
+	if len(msb12Bits) == 0 {
+		return []RLEData{}
+	}
+
+	// Pre-allocate capacity to reduce reallocations
+	result := make([]RLEData, 0, len(msb12Bits)/4+1)
+	currentValue := msb12Bits[0]
+	currentCount := uint32(1)
+	maxCount := uint32(^uint32(0)) // Maximum value of uint32
+
+	// Main loop with 4x unrolling
+	i := 1
+	for i <= len(msb12Bits)-4 {
+		// Process 4 elements at once
+		if msb12Bits[i] == currentValue &&
+			msb12Bits[i+1] == currentValue &&
+			msb12Bits[i+2] == currentValue &&
+			msb12Bits[i+3] == currentValue {
+			// All 4 values match current run
+			currentCount += 4
+			i += 4
+
+			// Check for uint32 overflow
+			if currentCount == maxCount {
+				// Store the current run and start a new run with the same value
+				result = append(result, RLEData{Value: currentValue, Count: currentCount})
+				currentCount = 0 // Reset count for the next entry with same value
+			}
+		} else {
+			// Process one element at a time when pattern breaks
+			if msb12Bits[i] == currentValue {
+				currentCount++
+
+				// Check for uint32 overflow
+				if currentCount == maxCount {
+					// Store the current run and start a new run with the same value
+					result = append(result, RLEData{Value: currentValue, Count: currentCount})
+					currentCount = 0 // Reset count for the next entry with same value
+				}
+			} else {
+				// Different value, store the current run and start a new one
+				result = append(result, RLEData{Value: currentValue, Count: currentCount})
+				currentValue = msb12Bits[i]
+				currentCount = 1
+			}
+			i++
+		}
+	}
+
+	// Handle remaining elements (less than 4)
+	for ; i < len(msb12Bits); i++ {
+		if msb12Bits[i] == currentValue {
+			// Same value, increment the count
+			currentCount++
+
+			// Check for uint32 overflow
+			if currentCount == maxCount {
+				// Store the current run and start a new run with the same value
+				result = append(result, RLEData{Value: currentValue, Count: currentCount})
+				currentCount = 0 // Reset count for the next entry with same value
+			}
+		} else {
+			// Different value, store the current run and start a new one
+			result = append(result, RLEData{Value: currentValue, Count: currentCount})
+			currentValue = msb12Bits[i]
+			currentCount = 1
+		}
+	}
+
+	// Don't forget to add the last run
+	if currentCount > 0 {
+		result = append(result, RLEData{Value: currentValue, Count: currentCount})
+	}
+
+	return result
+}
+
 // packLSB4IntoUint16 packs four 4-bit values into each uint16
 func packLSB4IntoUint16(lsb4Bits []uint8) []uint16 {
 	// Calculate how many uint16 values we need
@@ -127,6 +207,7 @@ func unpackUint16ToLSB4(packedValues []uint16, originalLength int) []uint8 {
 
 func HybridRLECompress(data []byte) []byte {
 	// Create a padded array if needed
+	// fmt.Println(len(data))
 	paddedArray := data
 	if len(data)%2 != 0 {
 		// Pad with a zero byte at the end

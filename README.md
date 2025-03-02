@@ -20,3 +20,4 @@ To build a redistributable, production mode package, use `wails build`. For Ubun
 
 ## Task tracking
 [] Beware of sanitized ip and original ip format, might waste a lot of time....
+[] Retool the IP tracking to take into account UUIDs
