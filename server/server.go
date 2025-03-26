@@ -241,13 +241,14 @@ func (db *DataBuffer) processBytes(newBytes []byte) {
 			// Convert pair of bytes to uint16 (big-endian)
 			// HS ADC sample processing
 			sample = float64(int16(binary.LittleEndian.Uint16(tempBuffer[i : i+2])))
-			sample = sample * -1 / 32768 * 2.5
+			sample = sample * -1 / 32768 * 2.5 * 2
 			// Add to our circular buffer
 			db.circularBuffer.Add(sample)
 		} else if db.port == 5556 {
 			// GADC sample processing
 			sample = float64(binary.LittleEndian.Uint16(tempBuffer[i : i+2]))
-			sample = sample*187.5e-6 - 6.144
+			// sample = sample*187.5e-6 - 6.144
+			sample = sample*312.5e-6 - 10.24
 			// Add to our circular buffer
 			db.circularBuffer.Add(sample)
 		} else {
