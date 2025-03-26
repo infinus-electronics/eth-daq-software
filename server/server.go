@@ -242,7 +242,7 @@ func (db *DataBuffer) processBytes(newBytes []byte) {
 			// HS ADC sample processing
 			sample = float64(int16(binary.LittleEndian.Uint16(tempBuffer[i : i+2])))
 			sample = sample * -1 / 32768 * 2.5 * 2
-			if sample < 0 {
+			if sample > 0 {
 				sample = sample * 20
 			}
 			// Add to our circular buffer
